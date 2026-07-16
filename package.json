@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/generate-product-pages.js",
-    "preview": "vite preview"
+    "build": "vite build",
+    "preview": "vite preview",
+    "server": "node server/server.js"
   },
   "devDependencies": {
     "vite": "^8.0.10"
