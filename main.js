@@ -1,4 +1,4 @@
-import { DEFAULT_PRODUCTS, SITE_URL } from "./product-data.js";
+import { SITE_URL } from "./site-config.js";
 
 // ─── CONFIG ───
 const DISCORD_LINK = "https://discord.gg/4YfQ335DvH";
@@ -11,9 +11,15 @@ const SUPABASE_PRODUCTS_TABLE = "products";
 const SUPABASE_SETTINGS_TABLE = "settings";
 
 // ─── META TAGS MANAGER ───
+function productImageUrl(product) {
+  const first = product.images && product.images[0];
+  if (!first) return `${SITE_URL}/images/logo.png`;
+  return first.startsWith("http") ? first : `${SITE_URL}${first}`;
+}
+
 function updateMetaTags(product) {
   const productUrl = `${SITE_URL}/product/${product.id}`;
-  const imageUrl = product.images && product.images[0] ? `${SITE_URL}${product.images[0]}` : `${SITE_URL}/images/logo.png`;
+  const imageUrl = productImageUrl(product);
     
     // Update OG tags
     const ogTitle = document.querySelector('meta[property="og:title"]');
@@ -77,14 +83,24 @@ const CATEGORIES = [
 ];
 
 // ─── STORAGE ───
+// Products live in Supabase; localStorage is only a cache so the site
+// renders instantly on repeat visits. v1 held a hardcoded default catalog.
+const PRODUCTS_CACHE_KEY = "sm_products_v2";
+localStorage.removeItem("sm_products_v1");
+
 function getProducts() {
     if (cachedProducts) return cachedProducts;
-    const s = localStorage.getItem("sm_products_v1");
-    if (s) return JSON.parse(s);
-    return [...DEFAULT_PRODUCTS];
+    try {
+        const s = localStorage.getItem(PRODUCTS_CACHE_KEY);
+        cachedProducts = s ? JSON.parse(s) : [];
+    } catch (e) {
+        cachedProducts = [];
+    }
+    return cachedProducts;
 }
 function saveProducts(p) {
-    localStorage.setItem("sm_products_v1", JSON.stringify(p));
+    cachedProducts = p;
+    localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(p));
 }
 function getReviews() {
     return JSON.parse(localStorage.getItem("sm_reviews_v1") || "[]");
@@ -281,10 +297,7 @@ async function syncProductsFromSupabase() {
         .map(productFromRemote)
         .filter(Boolean);
 
-      if (remote.length > 0) {
-        cachedProducts = remote;
-        saveProducts(remote);
-      }
+      saveProducts(remote);
     } catch (error) {
       console.warn("Unable to load products from Supabase:", error);
     }
