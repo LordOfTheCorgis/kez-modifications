@@ -2,13 +2,7 @@ import { SITE_URL } from "./site-config.js";
 
 // ─── CONFIG ───
 const DISCORD_LINK = "https://discord.gg/4YfQ335DvH";
-// Change ADMIN_PASSWORD before deploying — it is visible in the source bundle.
-const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD;
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
-const SUPABASE_REVIEWS_TABLE = "reviews";
-const SUPABASE_PRODUCTS_TABLE = "products";
-const SUPABASE_SETTINGS_TABLE = "settings";
+const API_BASE = "/api";
 
 // ─── META TAGS MANAGER ───
 function productImageUrl(product) {
@@ -82,319 +76,114 @@ const CATEGORIES = [
     { id: "dev-parts", label: "Developer Parts" },
 ];
 
-// ─── STORAGE ───
-// Products live in Supabase; localStorage is only a cache so the site
-// renders instantly on repeat visits. v1 held a hardcoded default catalog.
-const PRODUCTS_CACHE_KEY = "sm_products_v2";
-localStorage.removeItem("sm_products_v1");
+// ─── DATA LAYER ───
+// All data lives on the server (see server/server.js); these caches are
+// filled by loadData() before every render.
+let cachedProducts = [];
+let cachedReviews = [];
+let cachedSettings = { commission_time: "1-2 weeks", commissions_open: true };
+
+function getAdminToken() {
+    return sessionStorage.getItem("sm_admin_token");
+}
+
+async function apiFetch(path, options = {}) {
+    const headers = { ...(options.headers || {}) };
+    const token = getAdminToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    if (options.body && !headers["Content-Type"]) {
+        headers["Content-Type"] = "application/json";
+    }
+    const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+    if (!res.ok) {
+        let message = `Request failed (${res.status})`;
+        try {
+            const data = await res.json();
+            if (data && data.error) message = data.error;
+        } catch (e) {
+            // non-JSON error body; keep the status message
+        }
+        throw new Error(message);
+    }
+    const contentType = res.headers.get("content-type") || "";
+    return contentType.includes("application/json") ? res.json() : null;
+}
 
 function getProducts() {
-    if (cachedProducts) return cachedProducts;
-    try {
-        const s = localStorage.getItem(PRODUCTS_CACHE_KEY);
-        cachedProducts = s ? JSON.parse(s) : [];
-    } catch (e) {
-        cachedProducts = [];
-    }
     return cachedProducts;
 }
-function saveProducts(p) {
-    cachedProducts = p;
-    localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(p));
-}
 function getReviews() {
-    return JSON.parse(localStorage.getItem("sm_reviews_v1") || "[]");
-}
-function saveReviews(r) {
-    localStorage.setItem("sm_reviews_v1", JSON.stringify(r));
+    return cachedReviews;
 }
 function getCommissionTime() {
-    return localStorage.getItem("sm_commission_time") || "1-2 weeks";
+    return cachedSettings.commission_time || "1-2 weeks";
 }
-function saveCommissionTime(t) {
-    localStorage.setItem("sm_commission_time", t);
-}
-
 function getCommissionsOpen() {
-  return localStorage.getItem("sm_commissions_open") !== "0";
-}
-function saveCommissionsOpen(v) {
-  localStorage.setItem("sm_commissions_open", v ? "1" : "0");
+    return cachedSettings.commissions_open !== false;
 }
 
-async function syncCommissionTimeFromSupabase() {
-    if (!SUPABASE_URL || !SUPABASE_KEY) return;
-    try {
-        const res = await fetch(
-            `${SUPABASE_URL}/rest/v1/${SUPABASE_SETTINGS_TABLE}?key=eq.commission_time&select=value`,
-            {
-                headers: {
-                    apikey: SUPABASE_KEY,
-                    Authorization: `Bearer ${SUPABASE_KEY}`,
-                    Accept: "application/json",
-                },
-            },
-        );
-        if (!res.ok) return;
-        const rows = await res.json();
-        if (rows && rows.length > 0 && rows[0].value) {
-            saveCommissionTime(rows[0].value);
-        }
-    } catch (e) {
-        console.error("Failed to sync commission time:", e);
-    }
+let dataLoadPromise = null;
+async function loadData(force = false) {
+    if (dataLoadPromise && !force) return dataLoadPromise;
+    dataLoadPromise = (async () => {
+        const [products, reviews, settings] = await Promise.all([
+            apiFetch("/products").catch((e) => {
+                console.warn("Unable to load products:", e);
+                return cachedProducts;
+            }),
+            apiFetch("/reviews").catch((e) => {
+                console.warn("Unable to load reviews:", e);
+                return cachedReviews;
+            }),
+            apiFetch("/settings").catch((e) => {
+                console.warn("Unable to load settings:", e);
+                return null;
+            }),
+        ]);
+        cachedProducts = products;
+        cachedReviews = reviews;
+        if (settings) cachedSettings = settings;
+    })();
+    return dataLoadPromise;
 }
 
-    async function syncCommissionsOpenFromSupabase() {
-      if (!SUPABASE_URL || !SUPABASE_KEY) return;
-      try {
-        const res = await fetch(
-          `${SUPABASE_URL}/rest/v1/${SUPABASE_SETTINGS_TABLE}?key=eq.commissions_open&select=value`,
-          {
-            headers: {
-              apikey: SUPABASE_KEY,
-              Authorization: `Bearer ${SUPABASE_KEY}`,
-              Accept: "application/json",
-            },
-          },
-        );
-        if (!res.ok) return;
-        const rows = await res.json();
-        if (rows && rows.length > 0 && typeof rows[0].value !== "undefined") {
-          const v = String(rows[0].value);
-          saveCommissionsOpen(v === "1" || v.toLowerCase() === "true");
-        }
-      } catch (e) {
-        console.error("Failed to sync commissions open flag:", e);
-      }
-    }
-
-async function pushCommissionTimeToSupabase(value) {
-    if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error("Supabase is not configured");
-    const res = await fetch(
-        `${SUPABASE_URL}/rest/v1/${SUPABASE_SETTINGS_TABLE}?on_conflict=key`,
-        {
-            method: "POST",
-            headers: {
-                apikey: SUPABASE_KEY,
-                Authorization: `Bearer ${SUPABASE_KEY}`,
-                "Content-Type": "application/json",
-                Prefer: "resolution=merge-duplicates,return=representation",
-            },
-            body: JSON.stringify({ key: "commission_time", value }),
-        },
-    );
-    if (!res.ok) throw new Error(await res.text());
-    saveCommissionTime(value);
+async function pushCommissionTime(value) {
+    cachedSettings = await apiFetch("/settings", {
+        method: "PUT",
+        body: JSON.stringify({ commission_time: value }),
+    });
 }
 
-  async function pushCommissionsOpenToSupabase(value) {
-    if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error("Supabase is not configured");
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/${SUPABASE_SETTINGS_TABLE}?on_conflict=key`,
-      {
+async function pushCommissionsOpen(value) {
+    cachedSettings = await apiFetch("/settings", {
+        method: "PUT",
+        body: JSON.stringify({ commissions_open: !!value }),
+    });
+}
+
+async function pushProduct(product) {
+    const saved = await apiFetch("/products", {
         method: "POST",
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`,
-          "Content-Type": "application/json",
-          Prefer: "resolution=merge-duplicates,return=representation",
-        },
-        body: JSON.stringify({ key: "commissions_open", value: value ? "1" : "0" }),
-      },
-    );
-    if (!res.ok) throw new Error(await res.text());
-    saveCommissionsOpen(!!value);
-  }
-
-function normalizeReview(review) {
-  if (!review) return null;
-
-  const createdAt = review.createdAt || review.created_at || new Date().toISOString();
-  const status = review.status || (review.approved === false ? "pending" : "approved");
-
-  return {
-    id: String(review.id ?? review.review_id ?? review.uuid ?? `${review.name || "review"}-${createdAt}`),
-    name: review.name || review.author || "Anonymous",
-    rating: Number(review.rating ?? review.stars ?? 0),
-    message: review.message || review.review || "",
-    status,
-    createdAt,
-  };
+        body: JSON.stringify(product),
+    });
+    const exists = cachedProducts.some((p) => p.id === saved.id);
+    cachedProducts = exists
+        ? cachedProducts.map((p) => (p.id === saved.id ? saved : p))
+        : [...cachedProducts, saved];
+    return saved;
 }
 
-function mergeReviews(remoteReviews, localReviews) {
-  const merged = new Map();
-
-  for (const review of remoteReviews) {
-    if (review?.id) merged.set(review.id, review);
-  }
-
-  for (const review of localReviews) {
-    if (review?.id) merged.set(review.id, review);
-  }
-
-  return Array.from(merged.values()).sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  );
-}
-
-function productFromRemote(row) {
-  if (!row) return null;
-  return {
-    id: row.id,
-    name: row.name,
-    category: row.category,
-    price: Number(row.price),
-    tag: row.tag,
-    desc: row.description ?? "",
-    images: Array.isArray(row.images) ? row.images : [],
-    ...(row.credits ? { credits: row.credits } : {}),
-    ...(row.warning ? { warning: row.warning } : {}),
-    ...(row.lods ? { lods: row.lods } : {}),
-  };
-}
-
-function productToRemote(product) {
-  return {
-    id: product.id,
-    name: product.name,
-    category: product.category,
-    price: product.price,
-    tag: product.tag,
-    description: product.desc,
-    images: product.images,
-    credits: product.credits || null,
-    warning: product.warning || null,
-    lods: product.lods || null,
-  };
-}
-
-let productsSyncPromise = null;
-let cachedProducts = null;
-
-async function syncProductsFromSupabase() {
-  if (productsSyncPromise) return productsSyncPromise;
-
-  productsSyncPromise = (async () => {
-    if (!SUPABASE_URL || !SUPABASE_KEY) return;
-
-    try {
-      const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/${SUPABASE_PRODUCTS_TABLE}?select=*`,
-        {
-          headers: {
-            apikey: SUPABASE_KEY,
-            Authorization: `Bearer ${SUPABASE_KEY}`,
-            Accept: "application/json",
-          },
-        },
-      );
-
-      if (!response.ok) throw new Error(await response.text());
-
-      const remote = (await response.json())
-        .map(productFromRemote)
-        .filter(Boolean);
-
-      saveProducts(remote);
-    } catch (error) {
-      console.warn("Unable to load products from Supabase:", error);
-    }
-  })();
-
-  return productsSyncPromise;
-}
-
-async function pushProductToSupabase(product) {
-  if (!SUPABASE_URL || !SUPABASE_KEY) {
-    throw new Error("Supabase is not configured");
-  }
-  const response = await fetch(
-    `${SUPABASE_URL}/rest/v1/${SUPABASE_PRODUCTS_TABLE}?on_conflict=id`,
-    {
-      method: "POST",
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-        "Content-Type": "application/json",
-        Prefer: "resolution=merge-duplicates,return=representation",
-      },
-      body: JSON.stringify(productToRemote(product)),
-    },
-  );
-  if (!response.ok) throw new Error(await response.text());
-}
-
-async function deleteProductFromSupabase(id) {
-  if (!SUPABASE_URL || !SUPABASE_KEY) {
-    throw new Error("Supabase is not configured");
-  }
-  const response = await fetch(
-    `${SUPABASE_URL}/rest/v1/${SUPABASE_PRODUCTS_TABLE}?id=eq.${encodeURIComponent(id)}`,
-    {
-      method: "DELETE",
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-      },
-    },
-  );
-  if (!response.ok) throw new Error(await response.text());
-}
-
-let reviewsSyncPromise = null;
-
-async function syncReviewsFromSupabase() {
-  if (reviewsSyncPromise) return reviewsSyncPromise;
-
-  reviewsSyncPromise = (async () => {
-    if (!SUPABASE_URL || !SUPABASE_KEY) return;
-
-    try {
-      const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/${SUPABASE_REVIEWS_TABLE}?select=*`,
-        {
-          headers: {
-            apikey: SUPABASE_KEY,
-            Authorization: `Bearer ${SUPABASE_KEY}`,
-            Accept: "application/json",
-          },
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      const remoteReviews = (await response.json())
-        .map(normalizeReview)
-        .filter(Boolean);
-      const localReviews = getReviews().map(normalizeReview).filter(Boolean);
-      const mergedReviews = mergeReviews(remoteReviews, localReviews);
-
-      saveReviews(mergedReviews);
-    } catch (error) {
-      console.warn("Unable to load reviews from Supabase:", error);
-    }
-  })();
-
-  return reviewsSyncPromise;
+async function deleteProductRemote(id) {
+    await apiFetch(`/products/${encodeURIComponent(id)}`, { method: "DELETE" });
+    cachedProducts = cachedProducts.filter((p) => p.id !== id);
 }
 
 // ─── ADMIN AUTH ───
 function isAdmin() {
-    return sessionStorage.getItem("sm_admin") === "1";
-}
-function adminLogin(pass) {
-    if (pass === ADMIN_PASSWORD) {
-        sessionStorage.setItem("sm_admin", "1");
-        return true;
-    }
-    return false;
+    return !!getAdminToken();
 }
 window.adminLogout = function () {
-    sessionStorage.removeItem("sm_admin");
+    sessionStorage.removeItem("sm_admin_token");
     navigate("/");
 };
 
@@ -593,7 +382,7 @@ window.unhoverStars = function () {
     $$("#star-picker .star-pick").forEach((s) => s.classList.remove("hover"));
 };
 
-window.submitReview = function (e) {
+window.submitReview = async function (e) {
     e.preventDefault();
     const name = document.getElementById("rv-name").value.trim();
     const rating = parseInt(document.getElementById("rv-rating").value);
@@ -604,16 +393,15 @@ window.submitReview = function (e) {
         return;
     }
 
-    const reviews = getReviews();
-    reviews.push({
-        id: Date.now().toString(),
-        name,
-        rating,
-        message,
-        status: "pending",
-        createdAt: new Date().toISOString(),
-    });
-    saveReviews(reviews);
+    try {
+        await apiFetch("/reviews", {
+            method: "POST",
+            body: JSON.stringify({ name, rating, message }),
+        });
+    } catch (err) {
+        alert("Failed to submit review: " + err.message);
+        return;
+    }
 
     document.getElementById("review-form").style.display = "none";
     document.getElementById("review-thanks").style.display = "flex";
@@ -851,12 +639,18 @@ function renderAdminLogin(err) {
   </div>`;
 }
 
-window.doAdminLogin = function (e) {
+window.doAdminLogin = async function (e) {
     e.preventDefault();
     const pass = document.getElementById("admin-pass").value;
-    if (adminLogin(pass)) {
+    try {
+        const result = await apiFetch("/login", {
+            method: "POST",
+            body: JSON.stringify({ password: pass }),
+        });
+        sessionStorage.setItem("sm_admin_token", result.token);
+        await loadData(true);
         navigate("/admin/products");
-    } else {
+    } catch (err) {
         renderAdminLogin(true);
     }
 };
@@ -1016,22 +810,26 @@ window.syncAdminTag = function () {
         tagEl.value = tags[cat] || "";
 };
 
-async function uploadToSupabase(file) {
-    const ext = file.name.split(".").pop();
-    const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const res = await fetch(
-        `${SUPABASE_URL}/storage/v1/object/product-images/${filename}`,
-        {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${SUPABASE_KEY}`,
-                "Content-Type": file.type,
-            },
-            body: file,
+async function uploadImage(file) {
+    const res = await fetch(`${API_BASE}/upload`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${getAdminToken()}`,
+            "Content-Type": file.type,
         },
-    );
-    if (!res.ok) throw new Error(await res.text());
-    return `${SUPABASE_URL}/storage/v1/object/public/product-images/${filename}`;
+        body: file,
+    });
+    if (!res.ok) {
+        let message = `Upload failed (${res.status})`;
+        try {
+            const data = await res.json();
+            if (data && data.error) message = data.error;
+        } catch (e) {
+            // non-JSON error body; keep the status message
+        }
+        throw new Error(message);
+    }
+    return (await res.json()).url;
 }
 
 window.previewAdminImages = async function (e) {
@@ -1061,7 +859,7 @@ window.previewAdminImages = async function (e) {
     await Promise.all(
         files.map(async (file, i) => {
             try {
-                adminProductImages[i] = await uploadToSupabase(file);
+                adminProductImages[i] = await uploadImage(file);
                 wrappers[i].spinner.remove();
             } catch (err) {
                 wrappers[i].wrap.classList.add("upload-error");
@@ -1123,14 +921,12 @@ window.saveProduct = async function (e) {
     if (credits) entry.credits = credits;
     if (warning) entry.warning = warning;
 
-    let products = getProducts();
-    let saved;
-    if (editId) {
-        const existing = products.find((p) => p.id === editId) || {};
-        saved = { ...existing, ...entry, id: editId };
-    } else {
-        saved = { ...entry, id: "prod-" + Date.now() };
-    }
+    const existing = editId
+        ? getProducts().find((p) => p.id === editId) || {}
+        : {};
+    const saved = editId
+        ? { ...existing, ...entry, id: editId }
+        : { ...entry, id: "prod-" + Date.now() };
 
     const submitBtn = document.getElementById("ap-submit-btn");
     const originalText = submitBtn.textContent;
@@ -1138,34 +934,27 @@ window.saveProduct = async function (e) {
     submitBtn.textContent = "Saving...";
 
     try {
-        await pushProductToSupabase(saved);
+        await pushProduct(saved);
     } catch (err) {
-        console.error("Save to Supabase failed:", err);
-        alert("Failed to save product to database:\n" + err.message);
+        console.error("Save failed:", err);
+        alert("Failed to save product:\n" + err.message);
         submitBtn.disabled = false;
         submitBtn.textContent = originalText;
         return;
     }
 
-    if (editId) {
-        products = products.map((p) => (p.id === editId ? saved : p));
-    } else {
-        products.push(saved);
-    }
-    saveProducts(products);
     renderAdminProducts();
 };
 
 window.deleteProduct = async function (id) {
     if (!confirm("Delete this product? This cannot be undone.")) return;
     try {
-        await deleteProductFromSupabase(id);
+        await deleteProductRemote(id);
     } catch (err) {
-        console.error("Delete from Supabase failed:", err);
-        alert("Failed to delete product from database:\n" + err.message);
+        console.error("Delete failed:", err);
+        alert("Failed to delete product:\n" + err.message);
         return;
     }
-    saveProducts(getProducts().filter((p) => p.id !== id));
     renderAdminProducts();
 };
 
@@ -1240,17 +1029,31 @@ function renderAdminReviews() {
   </div>`;
 }
 
-window.approveReview = function (id) {
-    saveReviews(
-        getReviews().map((r) =>
-            r.id === id ? { ...r, status: "approved" } : r,
-        ),
+window.approveReview = async function (id) {
+    try {
+        await apiFetch(`/reviews/${encodeURIComponent(id)}/approve`, {
+            method: "POST",
+        });
+    } catch (err) {
+        alert("Failed to approve review: " + err.message);
+        return;
+    }
+    cachedReviews = cachedReviews.map((r) =>
+        r.id === id ? { ...r, status: "approved" } : r,
     );
     renderAdminReviews();
 };
-window.deleteReview = function (id) {
+window.deleteReview = async function (id) {
     if (!confirm("Delete this review?")) return;
-    saveReviews(getReviews().filter((r) => r.id !== id));
+    try {
+        await apiFetch(`/reviews/${encodeURIComponent(id)}`, {
+            method: "DELETE",
+        });
+    } catch (err) {
+        alert("Failed to delete review: " + err.message);
+        return;
+    }
+    cachedReviews = cachedReviews.filter((r) => r.id !== id);
     renderAdminReviews();
 };
 
@@ -1312,7 +1115,7 @@ window.saveCommissionTimeSetting = async function (e) {
     btn.textContent = "Saving…";
     msg.textContent = "";
     try {
-        await pushCommissionTimeToSupabase(value);
+        await pushCommissionTime(value);
         msg.style.color = "var(--green, #4ade80)";
         msg.textContent = "Saved!";
     } catch (err) {
@@ -1334,7 +1137,7 @@ window.saveCommissionOpenSetting = async function () {
   btn.textContent = "Saving…";
   msg.textContent = "";
   try {
-    await pushCommissionsOpenToSupabase(value);
+    await pushCommissionsOpen(value);
     // update label
     const lbl = document.getElementById("commission-open-label");
     if (lbl) lbl.textContent = value ? "Open" : "Closed";
@@ -1379,7 +1182,7 @@ window.goProduct = function (id) {
 
 async function router() {
     stopCarousel();
-  await Promise.all([syncReviewsFromSupabase(), syncProductsFromSupabase(), syncCommissionTimeFromSupabase(), syncCommissionsOpenFromSupabase()]);
+    await loadData();
     const path = window.location.pathname;
 
     if (path === "/admin" || path === "/admin/") {
