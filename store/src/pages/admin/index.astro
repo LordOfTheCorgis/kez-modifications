@@ -1,0 +1,347 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { db } from "../../lib/db";
+import type { CategoryRow } from "../../lib/db";
+
+if (!Astro.locals.user) return Astro.redirect("/api/auth/login?next=/admin");
+if (!Astro.locals.user.isAdmin) return Astro.redirect("/");
+
+const categories = db
+  .prepare("SELECT * FROM categories ORDER BY sort_order, id")
+  .all() as CategoryRow[];
+---
+
+<AdminLayout section="products" title="Products">
+  <div class="admin-section-header"><h1>Products</h1></div>
+
+  <div class="admin-card">
+    <form class="admin-form" id="pack-form">
+      <input type="hidden" id="pack-id" />
+      <div class="admin-form-2col">
+        <div class="form-row">
+          <label for="p-name">Name</label>
+          <input class="form-input" id="p-name" required />
+        </div>
+        <div class="form-row">
+          <label for="p-price">Price (USD) <span class="label-hint">0 = free</span></label>
+          <input class="form-input" id="p-price" type="number" min="0" step="0.01" value="0" />
+        </div>
+        <div class="form-row">
+          <label for="p-category">Category</label>
+          <select class="form-input" id="p-category">
+            <option value="">— none —</option>
+            {categories.map((c) => <option value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div class="form-row">
+          <label for="p-role">Discord role granted on purchase</label>
+          <select class="form-input" id="p-role">
+            <option value="">— none —</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <label for="p-desc">Description</label>
+        <textarea class="form-input" id="p-desc" rows="4"></textarea>
+      </div>
+      <div class="admin-form-2col">
+        <div class="form-row">
+          <label for="p-image">Main image</label>
+          <input class="form-input" id="p-image" type="file" accept="image/*" />
+          <small id="p-image-status"></small>
+        </div>
+        <div class="form-row">
+          <label for="p-gallery">Gallery images</label>
+          <input class="form-input" id="p-gallery" type="file" accept="image/*" multiple />
+          <small id="p-gallery-status"></small>
+        </div>
+      </div>
+      <div class="form-row">
+        <label for="p-file">Product file <span class="label-hint">stored privately, served via authenticated download</span></label>
+        <input class="form-input" id="p-file" type="file" />
+        <small id="p-file-status"></small>
+      </div>
+      <div class="admin-form-2col">
+        <div class="form-row">
+          <label><input type="checkbox" id="p-allaccess" /> Grants all-access (lifetime tier)</label>
+        </div>
+        <div class="form-row">
+          <label><input type="checkbox" id="p-featured" /> Featured on homepage</label>
+        </div>
+      </div>
+      <div class="error-note" id="pack-error"></div>
+      <div class="admin-form-actions">
+        <button class="btn btn-primary" type="submit" id="pack-save">Create pack</button>
+        <button class="btn btn-ghost" type="button" id="pack-reset">Reset</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr><th></th><th>Pack</th><th>Price</th><th>Category</th><th>Role</th><th>Sales</th><th></th></tr>
+      </thead>
+      <tbody id="pack-rows"><tr><td colspan="7" class="admin-empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</AdminLayout>
+
+<script>
+  type Pack = {
+    id: number; name: string; description: string; price: number;
+    image_url: string | null; file_url: string | null; category_id: number | null;
+    discord_role_id: string | null; grants_all_access: number; is_featured: number;
+    category_name: string | null; sales: number;
+  };
+  type PackImage = { pack_id: number; url: string };
+
+  let packs: Pack[] = [];
+  let imagesByPack = new Map<number, string[]>();
+  let roleNames = new Map<string, string>();
+  let uploadedImage = "";
+  let uploadedGallery: string[] = [];
+  let uploadedFile = "";
+
+  const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
+  const err = (msg: string) => (($("pack-error") as HTMLElement).textContent = msg);
+
+  async function api(url: string, method = "GET", body?: unknown) {
+    const res = await fetch(url, {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+    return data;
+  }
+
+  async function upload(file: File, kind: "image" | "file", statusId: string) {
+    const status = document.getElementById(statusId)!;
+    status.textContent = "Uploading…";
+    const form = new FormData();
+    form.append("file", file);
+    form.append("kind", kind);
+    const res = await fetch("/api/admin/upload", { method: "POST", body: form });
+    const data = await res.json();
+    if (!res.ok) {
+      status.textContent = data.error ?? "Upload failed";
+      throw new Error(data.error);
+    }
+    status.textContent = `✓ ${file.name}`;
+    return data;
+  }
+
+  $("p-image").addEventListener("change", async () => {
+    const f = $("p-image").files?.[0];
+    if (f) uploadedImage = (await upload(f, "image", "p-image-status")).url;
+  });
+  $("p-gallery").addEventListener("change", async () => {
+    for (const f of Array.from($("p-gallery").files ?? [])) {
+      uploadedGallery.push((await upload(f, "image", "p-gallery-status")).url);
+    }
+    document.getElementById("p-gallery-status")!.textContent = `${uploadedGallery.length} image(s)`;
+  });
+  $("p-file").addEventListener("change", async () => {
+    const f = $("p-file").files?.[0];
+    if (f) uploadedFile = (await upload(f, "file", "p-file-status")).file;
+  });
+
+  function resetForm() {
+    ($("pack-form") as unknown as HTMLFormElement).reset();
+    $("pack-id").value = "";
+    uploadedImage = "";
+    uploadedGallery = [];
+    uploadedFile = "";
+    ["p-image-status", "p-gallery-status", "p-file-status"].forEach(
+      (id) => (document.getElementById(id)!.textContent = ""),
+    );
+    document.getElementById("pack-save")!.textContent = "Create pack";
+    err("");
+  }
+  document.getElementById("pack-reset")!.addEventListener("click", resetForm);
+
+  function editPack(p: Pack) {
+    $("pack-id").value = String(p.id);
+    $("p-name").value = p.name;
+    $("p-price").value = (p.price / 100).toFixed(2);
+    ($("p-category") as unknown as HTMLSelectElement).value = p.category_id ? String(p.category_id) : "";
+    ($("p-role") as unknown as HTMLSelectElement).value = p.discord_role_id ?? "";
+    ($("p-desc") as unknown as HTMLTextAreaElement).value = p.description;
+    $("p-allaccess").checked = p.grants_all_access === 1;
+    $("p-featured").checked = p.is_featured === 1;
+    uploadedImage = p.image_url ?? "";
+    uploadedGallery = imagesByPack.get(p.id) ?? [];
+    uploadedFile = p.file_url ?? "";
+    document.getElementById("p-image-status")!.textContent = uploadedImage ? "current image kept" : "";
+    document.getElementById("p-gallery-status")!.textContent = `${uploadedGallery.length} image(s)`;
+    document.getElementById("p-file-status")!.textContent = uploadedFile ? "current file kept" : "";
+    document.getElementById("pack-save")!.textContent = "Save changes";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  document.getElementById("pack-form")!.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    err("");
+    const body = {
+      name: $("p-name").value,
+      price: Math.round(parseFloat($("p-price").value || "0") * 100),
+      category_id: ($("p-category") as unknown as HTMLSelectElement).value || null,
+      discord_role_id: ($("p-role") as unknown as HTMLSelectElement).value || "",
+      description: ($("p-desc") as unknown as HTMLTextAreaElement).value,
+      grants_all_access: $("p-allaccess").checked,
+      is_featured: $("p-featured").checked,
+      image_url: uploadedImage,
+      gallery: uploadedGallery,
+      file_url: uploadedFile,
+    };
+    try {
+      const id = $("pack-id").value;
+      if (id) await api(`/api/admin/packs/${id}`, "PUT", body);
+      else await api("/api/admin/packs", "POST", body);
+      resetForm();
+      await load();
+    } catch (e2) {
+      err((e2 as Error).message);
+    }
+  });
+
+  function renderRows() {
+    const tbody = document.getElementById("pack-rows")!;
+    tbody.textContent = "";
+    if (packs.length === 0) {
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = 7;
+      td.className = "admin-empty";
+      td.textContent = "No packs yet — create one above.";
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+      return;
+    }
+    for (const p of packs) {
+      const tr = document.createElement("tr");
+      tr.draggable = true;
+      tr.dataset.id = String(p.id);
+
+      const drag = document.createElement("td");
+      drag.textContent = "⠿";
+      drag.style.cursor = "grab";
+      tr.appendChild(drag);
+
+      const nameTd = document.createElement("td");
+      const cell = document.createElement("div");
+      cell.className = "admin-product-cell";
+      if (p.image_url) {
+        const img = document.createElement("img");
+        img.className = "admin-product-thumb";
+        img.src = p.image_url;
+        cell.appendChild(img);
+      }
+      const nm = document.createElement("span");
+      nm.textContent = p.name + (p.grants_all_access ? " ★" : "");
+      cell.appendChild(nm);
+      nameTd.appendChild(cell);
+      tr.appendChild(nameTd);
+
+      const price = document.createElement("td");
+      price.textContent = p.price === 0 ? "Free" : `$${(p.price / 100).toFixed(2)}`;
+      tr.appendChild(price);
+
+      const cat = document.createElement("td");
+      cat.textContent = p.category_name ?? "—";
+      tr.appendChild(cat);
+
+      const role = document.createElement("td");
+      role.textContent = p.discord_role_id
+        ? (roleNames.get(p.discord_role_id) ?? p.discord_role_id)
+        : "—";
+      tr.appendChild(role);
+
+      const sales = document.createElement("td");
+      sales.textContent = String(p.sales);
+      tr.appendChild(sales);
+
+      const actions = document.createElement("td");
+      const wrap = document.createElement("div");
+      wrap.className = "admin-row-actions";
+      const editBtn = document.createElement("button");
+      editBtn.className = "admin-edit-btn";
+      editBtn.textContent = "Edit";
+      editBtn.addEventListener("click", () => editPack(p));
+      const delBtn = document.createElement("button");
+      delBtn.className = "admin-del-btn";
+      delBtn.textContent = "Delete";
+      delBtn.addEventListener("click", async () => {
+        if (!confirm(`Delete "${p.name}"? This removes its files, orders, and logs.`)) return;
+        try {
+          await api(`/api/admin/packs/${p.id}`, "DELETE");
+          await load();
+        } catch (e2) {
+          err((e2 as Error).message);
+        }
+      });
+      wrap.append(editBtn, delBtn);
+      actions.appendChild(wrap);
+      tr.appendChild(actions);
+
+      tr.addEventListener("dragstart", (ev) => {
+        ev.dataTransfer?.setData("text/plain", String(p.id));
+        tr.style.opacity = "0.4";
+      });
+      tr.addEventListener("dragend", () => (tr.style.opacity = ""));
+      tr.addEventListener("dragover", (ev) => ev.preventDefault());
+      tr.addEventListener("drop", async (ev) => {
+        ev.preventDefault();
+        const draggedId = ev.dataTransfer?.getData("text/plain");
+        if (!draggedId || draggedId === String(p.id)) return;
+        const ids = packs.map((x) => x.id);
+        const from = ids.indexOf(Number(draggedId));
+        const to = ids.indexOf(p.id);
+        ids.splice(to, 0, ids.splice(from, 1)[0]);
+        try {
+          await api("/api/admin/reorder", "POST", { table: "packs", ids });
+          await load();
+        } catch (e2) {
+          err((e2 as Error).message);
+        }
+      });
+
+      tbody.appendChild(tr);
+    }
+  }
+
+  async function load() {
+    const data = await api("/api/admin/packs");
+    packs = data.packs;
+    imagesByPack = new Map();
+    for (const img of data.images as PackImage[]) {
+      const list = imagesByPack.get(img.pack_id) ?? [];
+      list.push(img.url);
+      imagesByPack.set(img.pack_id, list);
+    }
+    renderRows();
+  }
+
+  async function loadRoles() {
+    try {
+      const data = await api("/api/admin/roles");
+      const select = $("p-role") as unknown as HTMLSelectElement;
+      for (const r of data.roles as { id: string; name: string; managed: boolean }[]) {
+        if (r.managed || r.name === "@everyone") continue;
+        roleNames.set(r.id, r.name);
+        const opt = document.createElement("option");
+        opt.value = r.id;
+        opt.textContent = r.name;
+        select.appendChild(opt);
+      }
+      renderRows();
+    } catch {
+      /* bot not configured yet — picker stays empty */
+    }
+  }
+
+  load().catch((e2) => err((e2 as Error).message));
+  loadRoles();
+</script>

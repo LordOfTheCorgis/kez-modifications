@@ -1,0 +1,44 @@
+---
+import Layout from "./Layout.astro";
+
+interface Props {
+  section: string;
+  title: string;
+}
+
+const { section, title } = Astro.props;
+
+const items: [string, string][] = [
+  ["", "Products"],
+  ["categories", "Categories"],
+  ["discounts", "Discounts"],
+  ["orders", "Orders"],
+  ["staff", "Staff"],
+  ["settings", "Settings"],
+];
+---
+
+<Layout title={`${title} - Kez Admin`} active="admin">
+  <div class="admin-page">
+    <div class="admin-layout">
+      <aside class="admin-sidebar">
+        <div class="admin-sidebar-brand">Admin Panel</div>
+        {
+          items.map(([slug, label]) => (
+            <a
+              href={`/admin${slug ? `/${slug}` : ""}`}
+              class={`admin-nav-item ${section === (slug || "products") ? "active" : ""}`}
+            >
+              {label}
+            </a>
+          ))
+        }
+        <div class="admin-sidebar-divider"></div>
+        <a href="/" class="admin-nav-item">Back to Site</a>
+      </aside>
+      <div class="admin-content">
+        <slot />
+      </div>
+    </div>
+  </div>
+</Layout>
