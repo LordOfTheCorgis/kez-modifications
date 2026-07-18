@@ -1,0 +1,58 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+
+if (!Astro.locals.user) return Astro.redirect("/api/auth/login?next=/admin/orders");
+if (!Astro.locals.user.isAdmin) return Astro.redirect("/");
+---
+
+<AdminLayout section="orders" title="Orders">
+  <div class="admin-section-header"><h1>Orders & sales log</h1></div>
+
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr><th>#</th><th>Buyer</th><th>Pack</th><th>Amount</th><th>Status</th><th>Delivery</th><th>Date</th></tr>
+      </thead>
+      <tbody id="o-rows"><tr><td colspan="7" class="admin-empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</AdminLayout>
+
+<script>
+  type Order = {
+    id: number; user_name: string; discord_id: string; pack_name: string | null;
+    amount: number | null; status: string; delivery_note: string | null; created_at: string;
+  };
+
+  async function load() {
+    const res = await fetch("/api/admin/orders");
+    const data = await res.json();
+    const orders = document.getElementById("o-rows")!;
+    orders.textContent = "";
+    if (!data.orders?.length) {
+      orders.innerHTML = '<tr><td colspan="7" class="admin-empty">No orders yet.</td></tr>';
+    }
+    for (const o of (data.orders ?? []) as Order[]) {
+      const tr = document.createElement("tr");
+      const add = (text: string) => {
+        const td = document.createElement("td");
+        td.textContent = text;
+        tr.appendChild(td);
+        return td;
+      };
+      add(String(o.id));
+      add(`${o.user_name} (${o.discord_id})`);
+      add(o.pack_name ?? "—");
+      add(o.amount === null ? "—" : o.amount === 0 ? "Free" : `$${(o.amount / 100).toFixed(2)}`);
+      const st = add("");
+      const pill = document.createElement("span");
+      pill.className = `status-pill ${o.status === "paid" ? "status-approved" : "status-pending"}`;
+      pill.textContent = o.status;
+      st.appendChild(pill);
+      add(o.delivery_note ?? "—");
+      add(new Date(o.created_at + "Z").toLocaleString());
+      orders.appendChild(tr);
+    }
+  }
+  load();
+</script>

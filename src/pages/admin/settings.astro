@@ -1,0 +1,127 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+
+if (!Astro.locals.user) return Astro.redirect("/api/auth/login?next=/admin/settings");
+if (!Astro.locals.user.isAdmin) return Astro.redirect("/");
+
+const fields: { key: string; label: string; secret?: boolean; hint?: string }[] = [
+  { key: "discord_guild_id", label: "Discord guild (server) id" },
+  { key: "stripe_test_secret_key", label: "Stripe TEST secret key", secret: true },
+  { key: "stripe_test_webhook_secret", label: "Stripe TEST webhook secret", secret: true },
+  { key: "stripe_live_secret_key", label: "Stripe LIVE secret key", secret: true },
+  { key: "stripe_live_webhook_secret", label: "Stripe LIVE webhook secret", secret: true },
+  { key: "webhook_sales", label: "Sales feed webhook URL", hint: "Discord webhook for sale notifications" },
+  { key: "webhook_log", label: "Log feed webhook URL" },
+  { key: "webhook_discounts", label: "Discounts feed webhook URL" },
+];
+---
+
+<AdminLayout section="settings" title="Settings">
+  <div class="admin-section-header"><h1>Settings</h1></div>
+
+  <div class="admin-card">
+    <form class="admin-form" id="s-form">
+      <div class="form-row">
+        <label for="stripe_mode">Stripe mode</label>
+        <select class="form-input" id="stripe_mode" data-key="stripe_mode">
+          <option value="test">Test</option>
+          <option value="live">Live</option>
+        </select>
+        <small class="label-hint">Test and live keys are stored separately — switching modes never mixes them.</small>
+      </div>
+      <div class="form-row">
+        <label for="discord_guild_id">{fields[0].label}</label>
+        <input class="form-input" id="discord_guild_id" data-key="discord_guild_id" type="text" autocomplete="off" />
+      </div>
+      <div class="admin-form-2col">
+        <div class="form-row">
+          <label for="stripe_test_secret_key">{fields[1].label}</label>
+          <input class="form-input" id="stripe_test_secret_key" data-key="stripe_test_secret_key" type="password" placeholder="leave blank to keep current" autocomplete="off" />
+        </div>
+        <div class="form-row">
+          <label for="stripe_live_secret_key">{fields[3].label}</label>
+          <input class="form-input" id="stripe_live_secret_key" data-key="stripe_live_secret_key" type="password" placeholder="leave blank to keep current" autocomplete="off" />
+        </div>
+      </div>
+      <div class="admin-form-2col">
+        <div class="form-row">
+          <label for="stripe_test_webhook_secret">{fields[2].label}</label>
+          <input class="form-input" id="stripe_test_webhook_secret" data-key="stripe_test_webhook_secret" type="password" placeholder="leave blank to keep current" autocomplete="off" />
+        </div>
+        <div class="form-row">
+          <label for="stripe_live_webhook_secret">{fields[4].label}</label>
+          <input class="form-input" id="stripe_live_webhook_secret" data-key="stripe_live_webhook_secret" type="password" placeholder="leave blank to keep current" autocomplete="off" />
+        </div>
+      </div>
+      <div class="admin-form-2col">
+        <div class="form-row">
+          <label for="webhook_sales">{fields[5].label}</label>
+          <input class="form-input" id="webhook_sales" data-key="webhook_sales" type="text" placeholder="" autocomplete="off" />
+          <small class="label-hint">{fields[5].hint}</small>
+        </div>
+        <div class="form-row">
+          <label for="webhook_log">{fields[6].label}</label>
+          <input class="form-input" id="webhook_log" data-key="webhook_log" type="text" placeholder="" autocomplete="off" />
+        </div>
+      </div>
+      <div class="form-row">
+        <label for="webhook_discounts">{fields[7].label}</label>
+        <input class="form-input" id="webhook_discounts" data-key="webhook_discounts" type="text" placeholder="" autocomplete="off" />
+      </div>
+      <div class="error-note" id="s-error"></div>
+      <div class="admin-form-actions">
+        <button class="btn btn-primary" type="submit">Save settings</button>
+        <span id="s-saved" style="color:#4ade80;font-size:0.8rem;align-self:center;"></span>
+      </div>
+    </form>
+  </div>
+</AdminLayout>
+
+<script>
+  const err = (m: string) => (document.getElementById("s-error")!.textContent = m);
+
+  async function load() {
+    const res = await fetch("/api/admin/settings");
+    const data = await res.json();
+    if (!res.ok) {
+      err(data.error ?? "Failed to load");
+      return;
+    }
+    for (const el of document.querySelectorAll<HTMLInputElement>("[data-key]")) {
+      const value = data.settings[el.dataset.key!] ?? "";
+      // Secrets come back masked; keep the field empty so blank = unchanged.
+      if (el.type === "password") {
+        el.placeholder = value ? "***** set — enter to replace" : "not set";
+      } else {
+        el.value = value;
+      }
+    }
+  }
+
+  document.getElementById("s-form")!.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    err("");
+    const body: Record<string, string> = {};
+    for (const el of document.querySelectorAll<HTMLInputElement>("[data-key]")) {
+      if (el.value !== "") body[el.dataset.key!] = el.value;
+      else if (el.type !== "password") body[el.dataset.key!] = "";
+    }
+    const res = await fetch("/api/admin/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      err("Save failed");
+      return;
+    }
+    document.getElementById("s-saved")!.textContent = "Saved ✓";
+    setTimeout(() => (document.getElementById("s-saved")!.textContent = ""), 2500);
+    for (const el of document.querySelectorAll<HTMLInputElement>("[data-key]")) {
+      if (el.type === "password") el.value = "";
+    }
+    load();
+  });
+
+  load();
+</script>

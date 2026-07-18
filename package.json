@@ -1,15 +1,25 @@
 {
-  "name": "kezmodifications",
-  "version": "0.0.0",
-  "private": true,
+  "name": "kez-store",
   "type": "module",
+  "version": "1.0.0",
+  "private": true,
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "server": "node server/server.js"
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@astrojs/node": "^9.4.0",
+    "astro": "^5.13.0",
+    "better-sqlite3": "^11.10.0",
+    "dotenv": "^17.4.2",
+    "stripe": "^17.7.0"
   },
   "devDependencies": {
-    "vite": "^8.0.10"
+    "@astrojs/check": "^0.9.9",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.13.0",
+    "typescript": "^5.7.3"
   }
 }
