@@ -1,0 +1,138 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { db } from "../lib/db";
+import type { PackRow, SubscriptionRow } from "../lib/db";
+import { ownsPack } from "../lib/ownership";
+
+const user = Astro.locals.user;
+
+let ownedPacks: PackRow[] = [];
+let sub: SubscriptionRow | undefined;
+if (user) {
+  const allPacks = db.prepare("SELECT * FROM packs ORDER BY sort_order, id").all() as PackRow[];
+  ownedPacks = allPacks.filter((p) => ownsPack(user.id, user.discordRoles, p));
+  sub = db.prepare("SELECT * FROM subscriptions WHERE user_id = ?").get(user.id) as
+    | SubscriptionRow
+    | undefined;
+}
+
+const q = Astro.url.searchParams;
+const notice = q.get("purchase") === "success"
+  ? "Payment complete — your Discord role has been delivered."
+  : q.get("claimed") === "1"
+    ? "Pack claimed — your Discord role has been delivered."
+    : q.get("subscribed") === "1"
+      ? "Subscription active — welcome aboard."
+      : null;
+---
+
+<Layout title="Account - Kez Modifications" active="account">
+  {
+    !user ? (
+      <div class="login-cta">
+        <h1>Your account</h1>
+        <p>Sign in with Discord to see your packs, downloads, and subscription.</p>
+        <a href="/api/auth/login?next=/account" class="btn btn-primary">
+          Sign in with Discord
+        </a>
+      </div>
+    ) : (
+      <div class="account-page">
+        {notice && <div class="success-note">{notice}</div>}
+        <div class="account-header">
+          {user.image && <img src={user.image} alt="" class="account-avatar" />}
+          <div>
+            <h1>{user.name}</h1>
+            <p>Discord ID: {user.discordId}</p>
+          </div>
+          <form method="post" action="/api/auth/logout" style="margin-left:auto;">
+            <button class="btn btn-ghost btn-sm" type="submit">
+              Sign out
+            </button>
+          </form>
+        </div>
+
+        <div class="account-section">
+          <h2>Your packs</h2>
+          {ownedPacks.length === 0 ? (
+            <p class="admin-empty">
+              You don't own anything yet — <a href="/shop" style="color:var(--accent);">browse the shop</a>.
+            </p>
+          ) : (
+            ownedPacks.map((pack) => (
+              <div class="owned-row">
+                {pack.image_url ? (
+                  <img class="owned-thumb" src={pack.image_url} alt="" />
+                ) : (
+                  <div class="owned-thumb" />
+                )}
+                <div class="owned-name">{pack.name}</div>
+                <a href={`/product/${pack.id}`} class="btn btn-ghost btn-sm">
+                  View
+                </a>
+                {pack.file_url && (
+                  <a href={`/api/download/${pack.id}`} class="btn btn-primary btn-sm">
+                    Download
+                  </a>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+
+        <div class="account-section">
+          <h2>Subscription</h2>
+          <div class="sub-card">
+            {sub && sub.status !== "canceled" ? (
+              <>
+                <div class="sub-status">
+                  Tier: <strong>{sub.tier ?? "—"}</strong> · Status:{" "}
+                  <strong class={sub.status === "active" ? "status-open" : "status-closed"}>
+                    {sub.status}
+                  </strong>
+                  {sub.cancel_at && <> · ends {new Date(sub.cancel_at).toLocaleDateString()}</>}
+                  {!sub.cancel_at && sub.expires_at && (
+                    <> · renews {new Date(sub.expires_at).toLocaleDateString()}</>
+                  )}
+                </div>
+                <button
+                  class={`btn btn-sm ${sub.cancel_at ? "btn-primary" : "btn-ghost"}`}
+                  id="sub-toggle"
+                  data-reactivate={sub.cancel_at ? "1" : ""}
+                >
+                  {sub.cancel_at ? "Resume subscription" : "Cancel at period end"}
+                </button>
+              </>
+            ) : (
+              <div class="sub-status">No active subscription.</div>
+            )}
+          </div>
+          <div class="error-note" id="sub-error" />
+        </div>
+      </div>
+    )
+  }
+</Layout>
+
+<script>
+  const toggle = document.getElementById("sub-toggle") as HTMLButtonElement | null;
+  toggle?.addEventListener("click", async () => {
+    toggle.disabled = true;
+    try {
+      const res = await fetch("/api/subscription/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reactivate: toggle.dataset.reactivate === "1" }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        location.reload();
+        return;
+      }
+      document.getElementById("sub-error")!.textContent = data.error ?? "Failed";
+    } catch {
+      document.getElementById("sub-error")!.textContent = "Network error";
+    }
+    toggle.disabled = false;
+  });
+</script>

@@ -1,0 +1,82 @@
+---
+import "../styles/base.css";
+import "../styles/store.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+  image?: string;
+  active?: string;
+}
+
+const {
+  title = "Kez Modifications",
+  description = "Premium FiveM vehicle modifications. Ready-for-road packages and developer parts crafted with precision.",
+  image = "/images/logo.png",
+  active = "",
+} = Astro.props;
+
+const user = Astro.locals.user;
+const siteUrl = import.meta.env.PUBLIC_SITE_URL ?? "";
+const ogImage = image.startsWith("http") ? image : `${siteUrl}${image}`;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <link rel="icon" type="image/png" href="/images/logo.png" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+  </head>
+  <body>
+    <nav>
+      <div class="nav-inner">
+        <a href="/" class="nav-logo">
+          <img src="/images/logo.png" alt="Kez Modifications logo" />
+          <div class="nav-brand">KEZ <em>MODIFICATIONS</em></div>
+        </a>
+        <ul class="nav-links">
+          <li><a href="/" class={`nav-link ${active === "home" ? "active" : ""}`}>Home</a></li>
+          <li><a href="/shop" class={`nav-link ${active === "shop" ? "active" : ""}`}>Shop</a></li>
+          <li>
+            <a href="/account" class={`nav-link ${active === "account" ? "active" : ""}`}>Account</a>
+          </li>
+          {
+            user?.isAdmin && (
+              <li>
+                <a href="/admin" class={`nav-link ${active === "admin" ? "active" : ""}`}>Admin</a>
+              </li>
+            )
+          }
+        </ul>
+        {
+          user ? (
+            <a href="/account" class="nav-user" title={user.name}>
+              {user.image && <img src={user.image} alt="" class="nav-avatar" />}
+            </a>
+          ) : (
+            <a href="/api/auth/login" class="btn btn-primary btn-sm">Sign in</a>
+          )
+        }
+      </div>
+    </nav>
+
+    <main class="page">
+      <slot />
+    </main>
+
+    <footer>
+      <div class="footer-logo">KEZ MODIFICATIONS</div>
+      <p>&copy; 2026 Kez Modifications Founded April 2026. All rights reserved.</p>
+    </footer>
+  </body>
+</html>

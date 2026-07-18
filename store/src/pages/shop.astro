@@ -1,0 +1,75 @@
+---
+import Layout from "../layouts/Layout.astro";
+import PackCard from "../components/PackCard.astro";
+import { db } from "../lib/db";
+import type { CategoryRow, PackRow } from "../lib/db";
+import { ownsPack } from "../lib/ownership";
+
+const categories = db
+  .prepare("SELECT * FROM categories ORDER BY sort_order, id")
+  .all() as CategoryRow[];
+
+const rawCategory = Astro.url.searchParams.get("category");
+const activeCategory = rawCategory ? Number(rawCategory) : null;
+
+const packs = (
+  activeCategory
+    ? db
+        .prepare("SELECT * FROM packs WHERE category_id = ? ORDER BY sort_order, id")
+        .all(activeCategory)
+    : db.prepare("SELECT * FROM packs ORDER BY sort_order, id").all()
+) as PackRow[];
+
+const counts = new Map<number, number>();
+for (const row of db
+  .prepare("SELECT category_id, COUNT(*) AS n FROM packs GROUP BY category_id")
+  .all() as { category_id: number | null; n: number }[]) {
+  if (row.category_id !== null) counts.set(row.category_id, row.n);
+}
+const total = (db.prepare("SELECT COUNT(*) AS n FROM packs").get() as { n: number }).n;
+const user = Astro.locals.user;
+---
+
+<Layout title="Shop - Kez Modifications" active="shop">
+  <div class="shop-layout">
+    <aside class="sidebar">
+      <div class="sidebar-label">Categories</div>
+      <a href="/shop" class={`sidebar-item ${activeCategory === null ? "active" : ""}`}>
+        <span>All packs</span>
+        <span class="sidebar-count">{total}</span>
+      </a>
+      {
+        categories.map((cat) => (
+          <a
+            href={`/shop?category=${cat.id}`}
+            class={`sidebar-item ${activeCategory === cat.id ? "active" : ""}`}
+          >
+            <span>{cat.name}</span>
+            <span class="sidebar-count">{counts.get(cat.id) ?? 0}</span>
+          </a>
+        ))
+      }
+    </aside>
+
+    <div class="shop-content">
+      <div class="shop-header">
+        <h1>Shop</h1>
+        <p>{packs.length} pack{packs.length === 1 ? "" : "s"} available</p>
+      </div>
+      {
+        packs.length === 0 ? (
+          <p class="admin-empty">Nothing here yet — check back soon.</p>
+        ) : (
+          <div class="products-grid">
+            {packs.map((pack) => (
+              <PackCard
+                pack={pack}
+                owned={user ? ownsPack(user.id, user.discordRoles, pack) : false}
+              />
+            ))}
+          </div>
+        )
+      }
+    </div>
+  </div>
+</Layout>

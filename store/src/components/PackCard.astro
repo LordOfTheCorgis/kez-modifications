@@ -1,0 +1,30 @@
+---
+import type { PackRow } from "../lib/db";
+
+interface Props {
+  pack: PackRow;
+  owned?: boolean;
+}
+
+const { pack, owned = false } = Astro.props;
+const price = pack.price === 0 ? "Free" : `$${(pack.price / 100).toFixed(2)}`;
+const shortDesc =
+  pack.description.length > 120 ? `${pack.description.slice(0, 117)}…` : pack.description;
+---
+
+<a class="product-card" href={`/product/${pack.id}`}>
+  <div class="product-img-wrap">
+    <div class="card-badges">
+      {owned && <span class="badge badge-owned">Owned</span>}
+      {!owned && pack.price === 0 && <span class="badge badge-free">Free</span>}
+      {pack.is_featured === 1 && <span class="badge badge-featured">Featured</span>}
+    </div>
+    {pack.image_url && <img src={pack.image_url} alt={pack.name} loading="lazy" />}
+  </div>
+  <div class="product-body">
+    <div class="product-name">{pack.name}</div>
+    <div class="product-desc">{shortDesc}</div>
+    <div class="product-price">{price}</div>
+    <span class="product-btn">{owned ? "View" : pack.price === 0 ? "Claim" : "Buy now"}</span>
+  </div>
+</a>

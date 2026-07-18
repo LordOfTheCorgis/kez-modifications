@@ -1,0 +1,55 @@
+---
+import Layout from "../layouts/Layout.astro";
+import PackCard from "../components/PackCard.astro";
+import { db } from "../lib/db";
+import type { PackRow } from "../lib/db";
+import { ownsPack } from "../lib/ownership";
+
+const featured = db
+  .prepare("SELECT * FROM packs WHERE is_featured = 1 ORDER BY sort_order, id LIMIT 6")
+  .all() as PackRow[];
+const user = Astro.locals.user;
+---
+
+<Layout active="home">
+  <section class="hero">
+    <img src="/images/logo.png" class="hero-logo" alt="Kez Modifications" />
+    <h1>Kez Modifications</h1>
+    <p>
+      Premium FiveM vehicle modifications. Ready-for-road packages and developer parts crafted with
+      precision.
+    </p>
+    <div class="hero-btns">
+      <a href="/shop" class="btn btn-primary">Browse the shop</a>
+      <a href="/account" class="btn btn-ghost">My account</a>
+    </div>
+  </section>
+
+  <section class="about">
+    <div class="about-label">About</div>
+    <h2>Who is Kez?</h2>
+    <p>
+      Kez founded Kez Modifications in April of 2026. Since then, he has focused on building a
+      community of enthusiasts who value quality, attention to detail, and premium modifications.
+      What started as a passion project has grown into a trusted name in the FiveM modding scene.
+    </p>
+  </section>
+
+  {
+    featured.length > 0 && (
+      <section class="featured">
+        <div class="featured-header">
+          <h2>Featured Packs</h2>
+          <a href="/shop" class="btn btn-ghost btn-sm">
+            View all
+          </a>
+        </div>
+        <div class="featured-grid">
+          {featured.map((pack) => (
+            <PackCard pack={pack} owned={user ? ownsPack(user.id, user.discordRoles, pack) : false} />
+          ))}
+        </div>
+      </section>
+    )
+  }
+</Layout>

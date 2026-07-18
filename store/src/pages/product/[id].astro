@@ -1,0 +1,145 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { db } from "../../lib/db";
+import type { PackImageRow, PackRow } from "../../lib/db";
+import { ownsPack } from "../../lib/ownership";
+
+const pack = db
+  .prepare("SELECT * FROM packs WHERE id = ?")
+  .get(Number(Astro.params.id ?? 0)) as PackRow | undefined;
+if (!pack) return new Response("Not found", { status: 404 });
+
+const gallery = db
+  .prepare("SELECT * FROM pack_images WHERE pack_id = ? ORDER BY sort_order, id")
+  .all(pack.id) as PackImageRow[];
+const images = [
+  ...(pack.image_url ? [pack.image_url] : []),
+  ...gallery.map((g) => g.url).filter((u) => u !== pack.image_url),
+];
+
+const user = Astro.locals.user;
+const owned = user ? ownsPack(user.id, user.discordRoles, pack) : false;
+const priceLabel = pack.price === 0 ? "Free" : `$${(pack.price / 100).toFixed(2)}`;
+const canceled = Astro.url.searchParams.get("canceled") === "1";
+---
+
+<Layout
+  title={`${pack.name} - Kez Modifications`}
+  description={pack.description.slice(0, 200)}
+  image={images[0] ?? "/images/logo.png"}
+>
+  <div class="detail-layout">
+    <a href="/shop" class="detail-back">← Back to Shop</a>
+    <div class="detail-content">
+      <div class="detail-gallery">
+        <div class="detail-main-img">
+          {images[0] && <img id="main-img" src={images[0]} alt={pack.name} />}
+        </div>
+        {
+          images.length > 1 && (
+            <div class="detail-thumbs" id="thumbs">
+              {images.map((src, i) => (
+                <img
+                  class={`detail-thumb ${i === 0 ? "active" : ""}`}
+                  src={src}
+                  alt={`${pack.name} preview ${i + 1}`}
+                  data-src={src}
+                />
+              ))}
+            </div>
+          )
+        }
+      </div>
+
+      <div class="detail-info">
+        <div class="detail-name">{pack.name}</div>
+        <div class="detail-price">{priceLabel}</div>
+        <div class="detail-desc">{pack.description}</div>
+
+        {canceled && <div class="error-note">Checkout canceled — you have not been charged.</div>}
+        <div class="error-note" id="buy-error"></div>
+
+        {
+          owned ? (
+            <>
+              <span class="badge badge-owned" style="align-self:flex-start;">Owned</span>
+              {pack.file_url && (
+                <a class="btn btn-primary btn-purchase" href={`/api/download/${pack.id}`}>
+                  Download
+                </a>
+              )}
+            </>
+          ) : user ? (
+            <>
+              {pack.price > 0 && (
+                <div class="discount-row">
+                  <input
+                    class="form-input"
+                    id="discount-input"
+                    placeholder="Discount code (optional)"
+                    autocomplete="off"
+                  />
+                </div>
+              )}
+              <button class="btn btn-primary btn-purchase" id="buy-btn" data-pack-id={pack.id}>
+                {pack.price === 0 ? "Claim for free" : `Purchase — ${priceLabel}`}
+              </button>
+            </>
+          ) : (
+            <a
+              class="btn btn-primary btn-purchase"
+              href={`/api/auth/login?next=/product/${pack.id}`}
+            >
+              Sign in with Discord to {pack.price === 0 ? "claim" : "purchase"}
+            </a>
+          )
+        }
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  const thumbs = document.getElementById("thumbs");
+  const mainImg = document.getElementById("main-img") as HTMLImageElement | null;
+  thumbs?.addEventListener("click", (e) => {
+    const t = e.target as HTMLElement;
+    if (!t.classList.contains("detail-thumb") || !mainImg) return;
+    mainImg.src = t.dataset.src ?? mainImg.src;
+    thumbs.querySelectorAll(".detail-thumb").forEach((el) => el.classList.remove("active"));
+    t.classList.add("active");
+  });
+
+  const buyBtn = document.getElementById("buy-btn") as HTMLButtonElement | null;
+  buyBtn?.addEventListener("click", async () => {
+    const errBox = document.getElementById("buy-error")!;
+    errBox.textContent = "";
+    buyBtn.disabled = true;
+    buyBtn.textContent = "Working…";
+    try {
+      const codeInput = document.getElementById("discount-input") as HTMLInputElement | null;
+      const res = await fetch("/api/purchase", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          packId: Number(buyBtn.dataset.packId),
+          discountCode: codeInput?.value.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        location.href = data.url;
+        return;
+      }
+      if (data.claimed) {
+        location.href = "/account?claimed=1";
+        return;
+      }
+      errBox.textContent = data.error ?? "Something went wrong";
+    } catch {
+      errBox.textContent = "Network error — try again";
+    }
+    buyBtn.disabled = false;
+    buyBtn.textContent = "Try again";
+  });
+</script>
