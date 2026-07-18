@@ -1,0 +1,23 @@
+{
+  "name": "kez-store",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "start": "node ./dist/server/entry.mjs"
+  },
+  "dependencies": {
+    "@astrojs/node": "^9.4.0",
+    "astro": "^5.13.0",
+    "better-sqlite3": "^11.10.0",
+    "stripe": "^17.7.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.13.0",
+    "typescript": "^5.7.3"
+  }
+}
