@@ -1,0 +1,160 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+
+if (!Astro.locals.user) return Astro.redirect("/api/auth/login?next=/admin/discounts");
+if (!Astro.locals.user.isAdmin) return Astro.redirect("/");
+---
+
+<AdminLayout section="discounts" title="Discounts">
+  <div class="admin-section-header"><h1>Discount codes</h1></div>
+
+  <div class="admin-card">
+    <form class="admin-form" id="d-form">
+      <div class="admin-form-2col">
+        <div class="form-row">
+          <label for="d-code">Code</label>
+          <input class="form-input" id="d-code" required pattern="[A-Za-z0-9_-]{2,32}" />
+        </div>
+        <div class="form-row">
+          <label for="d-percent">Percent off (1-100)</label>
+          <input class="form-input" id="d-percent" type="number" min="1" max="100" required />
+        </div>
+        <div class="form-row">
+          <label for="d-max">Max uses <span class="label-hint">blank = unlimited</span></label>
+          <input class="form-input" id="d-max" type="number" min="1" />
+        </div>
+        <div class="form-row">
+          <label for="d-starts">Starts <span class="label-hint">blank = now</span></label>
+          <input class="form-input" id="d-starts" type="datetime-local" />
+        </div>
+        <div class="form-row">
+          <label for="d-expires">Expires <span class="label-hint">blank = never</span></label>
+          <input class="form-input" id="d-expires" type="datetime-local" />
+        </div>
+      </div>
+      <div class="error-note" id="d-error"></div>
+      <div class="admin-form-actions">
+        <button class="btn btn-primary" type="submit">Create code</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr><th>Code</th><th>%</th><th>Uses</th><th>Window</th><th>Status</th><th></th></tr>
+      </thead>
+      <tbody id="d-rows"><tr><td colspan="6" class="admin-empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</AdminLayout>
+
+<script>
+  type Discount = {
+    id: number; code: string; percent: number; max_uses: number | null; uses: number;
+    starts_at: string | null; expires_at: string | null; is_active: number;
+  };
+  const err = (m: string) => (document.getElementById("d-error")!.textContent = m);
+
+  async function api(url: string, method = "GET", body?: unknown) {
+    const res = await fetch(url, {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+    return data;
+  }
+
+  function render(discounts: Discount[]) {
+    const tbody = document.getElementById("d-rows")!;
+    tbody.textContent = "";
+    if (discounts.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="admin-empty">No discount codes.</td></tr>';
+      return;
+    }
+    for (const d of discounts) {
+      const tr = document.createElement("tr");
+      const add = (text: string) => {
+        const td = document.createElement("td");
+        td.textContent = text;
+        tr.appendChild(td);
+        return td;
+      };
+      add(d.code);
+      add(`${d.percent}%`);
+      add(`${d.uses}${d.max_uses ? ` / ${d.max_uses}` : ""}`);
+      add(
+        `${d.starts_at ? new Date(d.starts_at).toLocaleDateString() : "now"} → ${d.expires_at ? new Date(d.expires_at).toLocaleDateString() : "never"}`,
+      );
+      const status = add("");
+      const pill = document.createElement("span");
+      pill.className = `status-pill ${d.is_active ? "status-approved" : "status-pending"}`;
+      pill.textContent = d.is_active ? "active" : "off";
+      status.appendChild(pill);
+
+      const actions = document.createElement("td");
+      const wrap = document.createElement("div");
+      wrap.className = "admin-row-actions";
+      const toggle = document.createElement("button");
+      toggle.className = "admin-edit-btn";
+      toggle.textContent = d.is_active ? "Disable" : "Enable";
+      toggle.addEventListener("click", async () => {
+        try {
+          await api(`/api/admin/discounts/${d.id}`, "PUT", {
+            percent: d.percent,
+            max_uses: d.max_uses,
+            starts_at: d.starts_at,
+            expires_at: d.expires_at,
+            is_active: !d.is_active,
+          });
+          await load();
+        } catch (e) {
+          err((e as Error).message);
+        }
+      });
+      const del = document.createElement("button");
+      del.className = "admin-del-btn";
+      del.textContent = "Delete";
+      del.addEventListener("click", async () => {
+        if (!confirm(`Delete code ${d.code}?`)) return;
+        try {
+          await api(`/api/admin/discounts/${d.id}`, "DELETE");
+          await load();
+        } catch (e) {
+          err((e as Error).message);
+        }
+      });
+      wrap.append(toggle, del);
+      actions.appendChild(wrap);
+      tr.appendChild(actions);
+      tbody.appendChild(tr);
+    }
+  }
+
+  async function load() {
+    render((await api("/api/admin/discounts")).discounts);
+  }
+
+  document.getElementById("d-form")!.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const v = (id: string) => (document.getElementById(id) as HTMLInputElement).value;
+    try {
+      await api("/api/admin/discounts", "POST", {
+        code: v("d-code"),
+        percent: Number(v("d-percent")),
+        max_uses: v("d-max") ? Number(v("d-max")) : null,
+        starts_at: v("d-starts") || null,
+        expires_at: v("d-expires") || null,
+      });
+      (document.getElementById("d-form") as HTMLFormElement).reset();
+      err("");
+      await load();
+    } catch (e2) {
+      err((e2 as Error).message);
+    }
+  });
+
+  load().catch((e) => err((e as Error).message));
+</script>

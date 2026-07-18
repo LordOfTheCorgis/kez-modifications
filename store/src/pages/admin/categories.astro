@@ -1,0 +1,139 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+
+if (!Astro.locals.user) return Astro.redirect("/api/auth/login?next=/admin/categories");
+if (!Astro.locals.user.isAdmin) return Astro.redirect("/");
+---
+
+<AdminLayout section="categories" title="Categories">
+  <div class="admin-section-header"><h1>Categories</h1></div>
+
+  <div class="admin-card">
+    <form class="admin-form" id="cat-form">
+      <div class="form-row">
+        <label for="c-name">New category name</label>
+        <input class="form-input" id="c-name" required />
+      </div>
+      <div class="error-note" id="cat-error"></div>
+      <div class="admin-form-actions">
+        <button class="btn btn-primary" type="submit">Add category</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead><tr><th></th><th>Name</th><th></th></tr></thead>
+      <tbody id="cat-rows"><tr><td colspan="3" class="admin-empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</AdminLayout>
+
+<script>
+  type Cat = { id: number; name: string };
+  let cats: Cat[] = [];
+  const err = (m: string) => (document.getElementById("cat-error")!.textContent = m);
+
+  async function api(url: string, method = "GET", body?: unknown) {
+    const res = await fetch(url, {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+    return data;
+  }
+
+  function render() {
+    const tbody = document.getElementById("cat-rows")!;
+    tbody.textContent = "";
+    if (cats.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="3" class="admin-empty">No categories yet.</td></tr>';
+      return;
+    }
+    for (const c of cats) {
+      const tr = document.createElement("tr");
+      tr.draggable = true;
+
+      const drag = document.createElement("td");
+      drag.textContent = "⠿";
+      drag.style.cursor = "grab";
+      tr.appendChild(drag);
+
+      const name = document.createElement("td");
+      name.textContent = c.name;
+      tr.appendChild(name);
+
+      const actions = document.createElement("td");
+      const wrap = document.createElement("div");
+      wrap.className = "admin-row-actions";
+      const ren = document.createElement("button");
+      ren.className = "admin-edit-btn";
+      ren.textContent = "Rename";
+      ren.addEventListener("click", async () => {
+        const next = prompt("New name", c.name);
+        if (!next?.trim()) return;
+        try {
+          await api(`/api/admin/categories/${c.id}`, "PUT", { name: next.trim() });
+          await load();
+        } catch (e) {
+          err((e as Error).message);
+        }
+      });
+      const del = document.createElement("button");
+      del.className = "admin-del-btn";
+      del.textContent = "Delete";
+      del.addEventListener("click", async () => {
+        if (!confirm(`Delete "${c.name}"? Packs in it become uncategorised.`)) return;
+        try {
+          await api(`/api/admin/categories/${c.id}`, "DELETE");
+          await load();
+        } catch (e) {
+          err((e as Error).message);
+        }
+      });
+      wrap.append(ren, del);
+      actions.appendChild(wrap);
+      tr.appendChild(actions);
+
+      tr.addEventListener("dragstart", (ev) => ev.dataTransfer?.setData("text/plain", String(c.id)));
+      tr.addEventListener("dragover", (ev) => ev.preventDefault());
+      tr.addEventListener("drop", async (ev) => {
+        ev.preventDefault();
+        const draggedId = Number(ev.dataTransfer?.getData("text/plain"));
+        if (!draggedId || draggedId === c.id) return;
+        const ids = cats.map((x) => x.id);
+        ids.splice(ids.indexOf(c.id), 0, ids.splice(ids.indexOf(draggedId), 1)[0]);
+        try {
+          await api("/api/admin/reorder", "POST", { table: "categories", ids });
+          await load();
+        } catch (e) {
+          err((e as Error).message);
+        }
+      });
+
+      tbody.appendChild(tr);
+    }
+  }
+
+  async function load() {
+    cats = (await api("/api/admin/categories")).categories;
+    render();
+  }
+
+  document.getElementById("cat-form")!.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const input = document.getElementById("c-name") as HTMLInputElement;
+    try {
+      await api("/api/admin/categories", "POST", { name: input.value });
+      input.value = "";
+      err("");
+      await load();
+    } catch (e2) {
+      err((e2 as Error).message);
+    }
+  });
+
+  load().catch((e) => err((e as Error).message));
+</script>

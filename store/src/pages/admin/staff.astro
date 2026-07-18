@@ -1,0 +1,96 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+
+if (!Astro.locals.user) return Astro.redirect("/api/auth/login?next=/admin/staff");
+if (!Astro.locals.user.isAdmin) return Astro.redirect("/");
+---
+
+<AdminLayout section="staff" title="Staff">
+  <div class="admin-section-header"><h1>Staff & users</h1></div>
+  <div class="error-note" id="u-error"></div>
+
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr><th>User</th><th>Discord ID</th><th>Role</th><th>Admin</th><th>Banned</th><th></th></tr>
+      </thead>
+      <tbody id="u-rows"><tr><td colspan="6" class="admin-empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</AdminLayout>
+
+<script>
+  type User = {
+    id: number; discord_id: string; name: string; role: string;
+    is_admin: number; is_banned: number;
+  };
+  const err = (m: string) => (document.getElementById("u-error")!.textContent = m);
+
+  async function save(u: User, patch: Partial<{ is_admin: boolean; is_banned: boolean; role: string }>) {
+    const res = await fetch("/api/admin/users", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: u.id,
+        is_admin: patch.is_admin ?? u.is_admin === 1,
+        is_banned: patch.is_banned ?? u.is_banned === 1,
+        role: patch.role ?? u.role,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Failed");
+  }
+
+  async function load() {
+    const res = await fetch("/api/admin/users");
+    const data = await res.json();
+    const tbody = document.getElementById("u-rows")!;
+    tbody.textContent = "";
+    for (const u of (data.users ?? []) as User[]) {
+      const tr = document.createElement("tr");
+      const add = (text: string) => {
+        const td = document.createElement("td");
+        td.textContent = text;
+        tr.appendChild(td);
+        return td;
+      };
+      add(u.name);
+      add(u.discord_id);
+      add(u.role);
+      add(u.is_admin ? "✓" : "—");
+      add(u.is_banned ? "banned" : "—");
+
+      const actions = document.createElement("td");
+      const wrap = document.createElement("div");
+      wrap.className = "admin-row-actions";
+      const adminBtn = document.createElement("button");
+      adminBtn.className = "admin-edit-btn";
+      adminBtn.textContent = u.is_admin ? "Revoke admin" : "Make admin";
+      adminBtn.addEventListener("click", async () => {
+        try {
+          await save(u, { is_admin: u.is_admin !== 1 });
+          await load();
+        } catch (e) {
+          err((e as Error).message);
+        }
+      });
+      const banBtn = document.createElement("button");
+      banBtn.className = "admin-del-btn";
+      banBtn.textContent = u.is_banned ? "Unban" : "Ban";
+      banBtn.addEventListener("click", async () => {
+        if (!u.is_banned && !confirm(`Ban ${u.name}? Their sessions end immediately.`)) return;
+        try {
+          await save(u, { is_banned: u.is_banned !== 1 });
+          await load();
+        } catch (e) {
+          err((e as Error).message);
+        }
+      });
+      wrap.append(adminBtn, banBtn);
+      actions.appendChild(wrap);
+      tr.appendChild(actions);
+      tbody.appendChild(tr);
+    }
+  }
+  load().catch((e) => err((e as Error).message));
+</script>
