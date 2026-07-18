@@ -16,6 +16,7 @@
     "stripe": "^17.7.0"
   },
   "devDependencies": {
+    "@astrojs/check": "^0.9.9",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.13.0",
     "typescript": "^5.7.3"
