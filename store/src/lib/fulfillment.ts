@@ -65,6 +65,48 @@ export async function fulfillCheckoutSession(
   return { fulfilled: true, reason: note };
 }
 
+/**
+ * Idempotent fulfillment for mode:'subscription' checkout sessions — creates
+ * the local subscription row (so later webhook events can resolve the Stripe
+ * customer) and grants the tier role.
+ */
+export async function fulfillSubscriptionCheckout(session: Stripe.Checkout.Session): Promise<void> {
+  if (session.mode !== "subscription" || session.payment_status !== "paid") return;
+  const userId = Number(session.metadata?.userId ?? 0);
+  const tier = (session.metadata?.tier as string | undefined) ?? "";
+  const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
+  const subId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
+  if (!userId || !customerId) return;
+
+  const existing = db
+    .prepare("SELECT * FROM subscriptions WHERE user_id = ?")
+    .get(userId) as SubscriptionRow | undefined;
+  const alreadyFulfilled =
+    existing?.status === "active" && existing.stripe_subscription_id === (subId ?? null);
+
+  db.prepare(
+    `INSERT INTO subscriptions (user_id, stripe_customer_id, stripe_subscription_id, tier, status)
+     VALUES (?, ?, ?, ?, 'active')
+     ON CONFLICT(user_id) DO UPDATE SET stripe_customer_id = excluded.stripe_customer_id,
+       stripe_subscription_id = excluded.stripe_subscription_id, tier = excluded.tier,
+       status = 'active', cancel_at = NULL, updated_at = datetime('now')`,
+  ).run(userId, customerId, subId ?? null, tier || null);
+
+  if (alreadyFulfilled) return;
+
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as UserRow | undefined;
+  const roleId = tier ? getTierRoleId(tier) : "";
+  let note = "no tier role configured";
+  if (user && roleId) {
+    const res = await assignRole(user.discord_id, roleId);
+    note = res.ok ? "role assigned" : `role assignment failed: ${res.note}`;
+  }
+  await logToDiscord(
+    `:sparkles: **${user?.name ?? `user #${userId}`}** started a **${tier || "?"}** subscription — delivery: ${note}`,
+    "sales",
+  );
+}
+
 function localStatus(sub: Stripe.Subscription, deleted: boolean): SubscriptionRow["status"] | null {
   if (deleted || sub.status === "canceled" || sub.status === "incomplete_expired") return "canceled";
   if (sub.status === "active" || sub.status === "trialing") return "active";
