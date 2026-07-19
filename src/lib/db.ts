@@ -97,6 +97,15 @@ CREATE TABLE IF NOT EXISTS pack_images (
   url TEXT NOT NULL,
   sort_order INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS reviews (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  rating INTEGER NOT NULL,
+  message TEXT NOT NULL,
+  is_approved INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `);
 
 export interface UserRow {
@@ -160,4 +169,13 @@ export interface PackImageRow {
   pack_id: number;
   url: string;
   sort_order: number;
+}
+
+export interface ReviewRow {
+  id: number;
+  user_id: number;
+  rating: number;
+  message: string;
+  is_approved: number;
+  created_at: string;
 }

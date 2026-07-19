@@ -9,6 +9,21 @@ const featured = db
   .prepare("SELECT * FROM packs WHERE is_featured = 1 ORDER BY sort_order, id LIMIT 6")
   .all() as PackRow[];
 const user = Astro.locals.user;
+
+interface ReviewCard {
+  rating: number;
+  message: string;
+  name: string;
+  created_at: string;
+}
+const reviews = db
+  .prepare(
+    `SELECT r.rating, r.message, r.created_at, u.name
+     FROM reviews r JOIN users u ON u.id = r.user_id
+     WHERE r.is_approved = 1
+     ORDER BY r.created_at DESC LIMIT 12`,
+  )
+  .all() as ReviewCard[];
 ---
 
 <Layout active="home">
@@ -52,4 +67,130 @@ const user = Astro.locals.user;
       </section>
     )
   }
+
+  {
+    reviews.length > 0 && (
+      <section class="reviews-section">
+        <h2>What customers say</h2>
+        <div class="carousel-wrap">
+          <div class="carousel" id="review-carousel">
+            {reviews.map((r, i) => (
+              <div class={`carousel-card ${i === 0 ? "active" : ""}`}>
+                <div class="carousel-stars">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <span class={`star ${n <= r.rating ? "filled" : ""}`}>★</span>
+                  ))}
+                </div>
+                <p class="carousel-msg">"{r.message}"</p>
+                <div class="carousel-author">{r.name}</div>
+              </div>
+            ))}
+          </div>
+          {
+            reviews.length > 1 && (
+              <div class="carousel-controls">
+                <button class="carousel-btn" id="review-prev" aria-label="Previous review">‹</button>
+                <div class="carousel-dots" id="review-dots">
+                  {reviews.map((_, i) => (
+                    <button class={`dot ${i === 0 ? "active" : ""}`} data-idx={i} aria-label={`Review ${i + 1}`} />
+                  ))}
+                </div>
+                <button class="carousel-btn" id="review-next" aria-label="Next review">›</button>
+              </div>
+            )
+          }
+        </div>
+      </section>
+    )
+  }
+
+  <section class="review-form-section">
+    <div class="review-form-inner">
+      <h2>Leave a review</h2>
+      {
+        user ? (
+          <>
+            <p>Bought something from Kez? Let others know how it went. Reviews show up once approved.</p>
+            <form id="review-form">
+              <div class="form-row">
+                <label>Your rating</label>
+                <div class="star-picker" id="star-picker">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <span class="star-pick" data-value={n}>
+                      ★
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div class="form-row">
+                <label for="review-msg">Your review</label>
+                <textarea class="form-input" id="review-msg" rows="4" maxlength="1000" placeholder="What did you buy and how was it?" required />
+              </div>
+              <div class="error-note" id="review-error" />
+              <button class="btn btn-primary" type="submit">Submit review</button>
+            </form>
+            <div class="review-thanks" id="review-thanks" style="display:none;">
+              Thanks! Your review was submitted and will appear once it's approved.
+            </div>
+          </>
+        ) : (
+          <p>
+            <a href="/api/auth/login" style="color: var(--accent);">Sign in with Discord</a> to leave a review.
+          </p>
+        )
+      }
+    </div>
+  </section>
 </Layout>
+
+<script>
+  // Carousel
+  const cards = Array.from(document.querySelectorAll<HTMLElement>("#review-carousel .carousel-card"));
+  const dots = Array.from(document.querySelectorAll<HTMLElement>("#review-dots .dot"));
+  let current = 0;
+  function show(idx: number) {
+    current = (idx + cards.length) % cards.length;
+    cards.forEach((c, i) => c.classList.toggle("active", i === current));
+    dots.forEach((d, i) => d.classList.toggle("active", i === current));
+  }
+  document.getElementById("review-prev")?.addEventListener("click", () => show(current - 1));
+  document.getElementById("review-next")?.addEventListener("click", () => show(current + 1));
+  dots.forEach((d) => d.addEventListener("click", () => show(Number(d.dataset.idx))));
+  if (cards.length > 1) setInterval(() => show(current + 1), 7000);
+
+  // Star picker + submit
+  const picker = document.getElementById("star-picker");
+  const form = document.getElementById("review-form") as HTMLFormElement | null;
+  let rating = 0;
+  if (picker) {
+    const stars = Array.from(picker.querySelectorAll<HTMLElement>(".star-pick"));
+    const paint = (upTo: number, cls: string) =>
+      stars.forEach((s) => s.classList.toggle(cls, Number(s.dataset.value) <= upTo));
+    stars.forEach((s) => {
+      s.addEventListener("mouseenter", () => paint(Number(s.dataset.value), "hover"));
+      s.addEventListener("mouseleave", () => paint(0, "hover"));
+      s.addEventListener("click", () => {
+        rating = Number(s.dataset.value);
+        paint(rating, "active");
+      });
+    });
+  }
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById("review-error")!;
+    errEl.textContent = "";
+    const message = (document.getElementById("review-msg") as HTMLTextAreaElement).value;
+    const res = await fetch("/api/reviews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rating, message }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      errEl.textContent = data.error ?? `HTTP ${res.status}`;
+      return;
+    }
+    form.style.display = "none";
+    document.getElementById("review-thanks")!.style.display = "flex";
+  });
+</script>

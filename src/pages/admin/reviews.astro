@@ -1,0 +1,129 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+
+if (!Astro.locals.user) return Astro.redirect("/api/auth/login?next=/admin/reviews");
+if (!Astro.locals.user.isAdmin) return Astro.redirect("/");
+---
+
+<AdminLayout section="reviews" title="Reviews">
+  <div class="admin-section-header"><h1>Reviews</h1></div>
+  <div class="error-note" id="rev-error"></div>
+
+  <div class="admin-review-group">
+    <div class="admin-group-label">Pending approval</div>
+    <div id="rev-pending"><div class="admin-empty">Loading…</div></div>
+  </div>
+
+  <div class="admin-review-group" style="margin-top:1.5rem;">
+    <div class="admin-group-label">Approved</div>
+    <div id="rev-approved"><div class="admin-empty">Loading…</div></div>
+  </div>
+</AdminLayout>
+
+<script>
+  type Review = {
+    id: number;
+    rating: number;
+    message: string;
+    is_approved: number;
+    created_at: string;
+    name: string;
+    image: string | null;
+  };
+  const err = (m: string) => (document.getElementById("rev-error")!.textContent = m);
+
+  async function api(url: string, method = "GET", body?: unknown) {
+    const res = await fetch(url, {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+    return data;
+  }
+
+  function card(r: Review): HTMLElement {
+    const item = document.createElement("div");
+    item.className = "review-item";
+
+    const header = document.createElement("div");
+    header.className = "review-item-header";
+    const name = document.createElement("span");
+    name.className = "review-item-name";
+    name.textContent = r.name;
+    const stars = document.createElement("span");
+    stars.className = "review-item-stars";
+    for (let n = 1; n <= 5; n++) {
+      const s = document.createElement("span");
+      s.className = `star ${n <= r.rating ? "filled" : ""}`;
+      s.textContent = "★";
+      stars.appendChild(s);
+    }
+    const pill = document.createElement("span");
+    pill.className = `status-pill ${r.is_approved ? "status-approved" : "status-pending"}`;
+    pill.textContent = r.is_approved ? "Approved" : "Pending";
+    const date = document.createElement("span");
+    date.className = "review-item-date";
+    date.textContent = r.created_at;
+    header.append(name, stars, pill, date);
+
+    const msg = document.createElement("p");
+    msg.className = "review-item-msg";
+    msg.textContent = `"${r.message}"`;
+
+    const actions = document.createElement("div");
+    actions.className = "review-item-actions";
+    const toggle = document.createElement("button");
+    toggle.className = "admin-edit-btn";
+    toggle.textContent = r.is_approved ? "Unapprove" : "Approve";
+    toggle.addEventListener("click", async () => {
+      try {
+        await api(`/api/admin/reviews/${r.id}`, "PUT", { is_approved: !r.is_approved });
+        await load();
+      } catch (e) {
+        err((e as Error).message);
+      }
+    });
+    const del = document.createElement("button");
+    del.className = "admin-del-btn";
+    del.textContent = "Delete";
+    del.addEventListener("click", async () => {
+      if (!confirm(`Delete review by ${r.name}?`)) return;
+      try {
+        await api(`/api/admin/reviews/${r.id}`, "DELETE");
+        await load();
+      } catch (e) {
+        err((e as Error).message);
+      }
+    });
+    actions.append(toggle, del);
+
+    item.append(header, msg, actions);
+    return item;
+  }
+
+  function fill(el: HTMLElement, list: Review[], emptyMsg: string) {
+    el.textContent = "";
+    if (list.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "admin-empty";
+      empty.textContent = emptyMsg;
+      el.appendChild(empty);
+      return;
+    }
+    for (const r of list) el.appendChild(card(r));
+  }
+
+  function fillGroups(reviews: Review[]) {
+    fill(document.getElementById("rev-pending")!, reviews.filter((r) => !r.is_approved), "Nothing waiting for approval.");
+    fill(document.getElementById("rev-approved")!, reviews.filter((r) => r.is_approved), "No approved reviews yet.");
+  }
+
+  async function load() {
+    const reviews = (await api("/api/admin/reviews")).reviews as Review[];
+    fillGroups(reviews);
+  }
+
+  load().catch((e) => err((e as Error).message));
+</script>
