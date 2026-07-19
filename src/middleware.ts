@@ -15,13 +15,7 @@ const STATE_CHANGING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
  * production. Compare the Origin host against every host we can legitimately
  * be reached as instead.
  */
-function isTrustedOrigin(origin: string, request: Request, url: URL): boolean {
-  let originHost: string;
-  try {
-    originHost = new URL(origin).host.toLowerCase();
-  } catch {
-    return false;
-  }
+function trustedHostsFor(request: Request, url: URL): Set<string> {
   const trustedHosts = new Set<string>([url.host.toLowerCase()]);
   const hostHeader = request.headers.get("host");
   if (hostHeader) trustedHosts.add(hostHeader.trim().toLowerCase());
@@ -32,7 +26,15 @@ function isTrustedOrigin(origin: string, request: Request, url: URL): boolean {
   } catch {
     // PUBLIC_SITE_URL unset or malformed — the other candidates still apply.
   }
-  return trustedHosts.has(originHost);
+  return trustedHosts;
+}
+
+function originHostOf(origin: string): string | null {
+  try {
+    return new URL(origin).host.toLowerCase();
+  } catch {
+    return null;
+  }
 }
 
 export const onRequest = defineMiddleware(async (context, next) => {
@@ -42,8 +44,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // Server-to-server posts (Stripe webhooks) carry no Origin header and pass.
   if (STATE_CHANGING.has(request.method)) {
     const origin = request.headers.get("origin");
-    if (origin && !isTrustedOrigin(origin, request, url)) {
-      return new Response("Cross-origin request rejected", { status: 403 });
+    if (origin) {
+      const originHost = originHostOf(origin);
+      const trustedHosts = trustedHostsFor(request, url);
+      if (!originHost || !trustedHosts.has(originHost)) {
+        console.error(
+          `[csrf] 403 ${request.method} ${url.pathname} — origin '${origin}' not in trusted hosts [${[...trustedHosts].join(", ")}]`,
+        );
+        return new Response("Cross-origin request rejected", { status: 403 });
+      }
     }
   }
 
