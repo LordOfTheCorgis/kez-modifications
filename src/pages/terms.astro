@@ -1,0 +1,88 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+const lastUpdated = "July 18, 2026";
+
+const sections: { title: string; body: string[] }[] = [
+  {
+    title: "1. Acceptance of Terms",
+    body: [
+      "By accessing Kez Modifications, purchasing a product, or joining our Discord server, you agree to these Terms of Service. If you do not agree with any part of these terms, do not use the site or purchase our products.",
+    ],
+  },
+  {
+    title: "2. Digital Products & Delivery",
+    body: [
+      "All products sold on this site are digital goods for use with FiveM. Nothing physical will ever be shipped.",
+      "Delivery is automatic: after a successful payment your Discord account is granted the role tied to the product, and downloads unlock on your account page. You must be a member of the Kez Modifications Discord server to sign in and receive your purchase.",
+    ],
+  },
+  {
+    title: "3. Payments",
+    body: [
+      "Payments are processed securely by Stripe. We never see or store your card details.",
+      "Prices are listed in USD and may change at any time. Discount codes apply only at the time of purchase and cannot be applied retroactively.",
+    ],
+  },
+  {
+    title: "4. Refunds & Chargebacks",
+    body: [
+      "Because our products are digital and delivered instantly, all sales are final. Refunds are not provided once a product has been delivered, except where required by law.",
+      "Opening a chargeback or payment dispute instead of contacting us first will result in immediate revocation of your access and a permanent ban from our store and Discord server.",
+    ],
+  },
+  {
+    title: "5. License & Usage",
+    body: [
+      "Purchases grant you a non-exclusive, non-transferable license to use the product on your own FiveM server or community.",
+      "You may not resell, redistribute, leak, share, or repackage any product or its files, in whole or in part. You may not claim our work as your own. Violations result in a permanent ban and may be pursued further.",
+    ],
+  },
+  {
+    title: "6. Accounts & Discord",
+    body: [
+      "Signing in requires Discord and membership in the Kez Modifications Discord server. Leaving the server may remove access to purchased roles until you rejoin.",
+      "You are responsible for activity on your Discord account. We reserve the right to suspend or ban accounts that violate these terms or attempt to abuse the store.",
+    ],
+  },
+  {
+    title: "7. Commissions",
+    body: [
+      "Custom commission work, when open, is subject to the same licensing rules as store products unless agreed otherwise in writing. Commission slots, pricing, and timelines are handled through our Discord server.",
+    ],
+  },
+  {
+    title: "8. Changes to These Terms",
+    body: [
+      "We may update these terms at any time. Continued use of the site after changes are posted constitutes acceptance of the updated terms.",
+    ],
+  },
+  {
+    title: "9. Contact",
+    body: [
+      "Questions about these terms, your order, or your access? Reach out in the Kez Modifications Discord server. It is the fastest way to get support.",
+    ],
+  },
+];
+---
+
+<Layout title="Terms of Service - Kez Modifications" description="Terms of Service for Kez Modifications digital products.">
+  <div class="legal-page">
+    <header class="legal-header">
+      <div class="about-label">Legal</div>
+      <h1>Terms of Service</h1>
+      <p class="legal-updated">Last updated {lastUpdated}</p>
+    </header>
+
+    {
+      sections.map((s) => (
+        <section class="legal-section">
+          <h2>{s.title}</h2>
+          {s.body.map((p) => (
+            <p>{p}</p>
+          ))}
+        </section>
+      ))
+    }
+  </div>
+</Layout>
