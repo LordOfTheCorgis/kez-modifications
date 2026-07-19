@@ -1,0 +1,88 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+
+if (!Astro.locals.user) return Astro.redirect("/api/auth/login?next=/admin/commissions");
+if (!Astro.locals.user.isAdmin) return Astro.redirect("/");
+---
+
+<AdminLayout section="commissions" title="Commissions">
+  <div class="admin-section-header">
+    <h1>Commissions</h1>
+    <span id="comm-status" class="status-closed">CLOSED</span>
+  </div>
+
+  <div class="admin-card">
+    <form class="admin-form" id="comm-form">
+      <div class="form-row">
+        <label style="display:flex;align-items:center;gap:0.6rem;cursor:pointer;">
+          <input type="checkbox" id="comm-open" />
+          Commissions are open
+        </label>
+        <small class="label-hint">Controls the OPEN / CLOSED status shown on the public commissions page.</small>
+      </div>
+      <div class="form-row">
+        <label for="comm-intro">Intro text</label>
+        <textarea class="form-input" id="comm-intro" rows="3" placeholder="Shown under the Commissions heading. Leave blank for the default."></textarea>
+      </div>
+      <div class="form-row">
+        <label for="comm-note">Status note</label>
+        <textarea class="form-input" id="comm-note" rows="3" placeholder="Queue info when open, or the closed message. Leave blank for the default."></textarea>
+      </div>
+      <div class="error-note" id="comm-error"></div>
+      <div class="admin-form-actions">
+        <button class="btn btn-primary" type="submit">Save</button>
+        <a href="/commissions" class="btn btn-ghost" target="_blank" rel="noopener noreferrer">View public page</a>
+        <span id="comm-saved" style="color:#4ade80;font-size:0.8rem;align-self:center;"></span>
+      </div>
+    </form>
+  </div>
+</AdminLayout>
+
+<script>
+  const err = (m: string) => (document.getElementById("comm-error")!.textContent = m);
+  const openBox = document.getElementById("comm-open") as HTMLInputElement;
+  const intro = document.getElementById("comm-intro") as HTMLTextAreaElement;
+  const note = document.getElementById("comm-note") as HTMLTextAreaElement;
+
+  function paintStatus() {
+    const el = document.getElementById("comm-status")!;
+    el.textContent = openBox.checked ? "OPEN" : "CLOSED";
+    el.className = openBox.checked ? "status-open" : "status-closed";
+  }
+  openBox.addEventListener("change", paintStatus);
+
+  async function load() {
+    const res = await fetch("/api/admin/settings");
+    const data = await res.json();
+    if (!res.ok) {
+      err(data.error ?? "Failed to load");
+      return;
+    }
+    openBox.checked = data.settings.commissions_open === "1";
+    intro.value = data.settings.commissions_intro ?? "";
+    note.value = data.settings.commissions_note ?? "";
+    paintStatus();
+  }
+
+  document.getElementById("comm-form")!.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    err("");
+    const res = await fetch("/api/admin/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        commissions_open: openBox.checked ? "1" : "0",
+        commissions_intro: intro.value,
+        commissions_note: note.value,
+      }),
+    });
+    if (!res.ok) {
+      err("Save failed");
+      return;
+    }
+    document.getElementById("comm-saved")!.textContent = "Saved ✓";
+    setTimeout(() => (document.getElementById("comm-saved")!.textContent = ""), 2500);
+  });
+
+  load().catch((e) => err((e as Error).message));
+</script>
