@@ -68,6 +68,11 @@ const fields: { key: string; label: string; secret?: boolean; hint?: string }[] 
         <label for="webhook_discounts">{fields[7].label}</label>
         <input class="form-input" id="webhook_discounts" data-key="webhook_discounts" type="text" placeholder="" autocomplete="off" />
       </div>
+      <div class="form-row">
+        <label for="discord_invite_url">Discord invite URL</label>
+        <input class="form-input" id="discord_invite_url" data-key="discord_invite_url" type="text" placeholder="https://discord.gg/..." autocomplete="off" />
+        <small class="label-hint">Shown as a "Join the Discord" button in the site footer. Leave blank to hide it.</small>
+      </div>
       <div class="error-note" id="s-error"></div>
       <div class="admin-form-actions">
         <button class="btn btn-primary" type="submit">Save settings</button>
