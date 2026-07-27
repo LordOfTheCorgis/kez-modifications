@@ -563,6 +563,11 @@ main {
   font-size: 0.95rem;
   margin: 0.5rem 0;
 }
+.admin-role-select {
+  width: auto;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+}
 .detail-desc p {
   margin: 0 0 0.75rem;
 }

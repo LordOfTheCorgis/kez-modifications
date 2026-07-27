@@ -26,6 +26,10 @@ export const PUT: APIRoute = async ({ request, locals }) => {
   } | null;
   const id = Number(b?.id ?? 0);
   if (!id) return json({ error: "id required" }, 400);
+  const ALLOWED_ROLES = ["customer", "developer", "staff", "owner"];
+  if (typeof b?.role === "string" && !ALLOWED_ROLES.includes(b.role)) {
+    return json({ error: `role must be one of: ${ALLOWED_ROLES.join(", ")}` }, 400);
+  }
   if (id === locals.user!.id && b?.is_admin === false) {
     return json({ error: "You cannot remove your own admin" }, 400);
   }

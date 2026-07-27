@@ -56,7 +56,29 @@ if (!Astro.locals.user.isAdmin) return Astro.redirect("/");
       };
       add(u.name);
       add(u.discord_id);
-      add(u.role);
+
+      const roleTd = document.createElement("td");
+      const roleSel = document.createElement("select");
+      roleSel.className = "form-input admin-role-select";
+      const roles = ["customer", "developer", "staff", "owner"];
+      if (!roles.includes(u.role)) roles.unshift(u.role);
+      for (const r of roles) {
+        const opt = document.createElement("option");
+        opt.value = r;
+        opt.textContent = r;
+        opt.selected = r === u.role;
+        roleSel.appendChild(opt);
+      }
+      roleSel.addEventListener("change", async () => {
+        try {
+          await save(u, { role: roleSel.value });
+          await load();
+        } catch (e) {
+          err((e as Error).message);
+        }
+      });
+      roleTd.appendChild(roleSel);
+      tr.appendChild(roleTd);
       add(u.is_admin ? "✓" : "—");
       add(u.is_banned ? "banned" : "—");
 
