@@ -108,6 +108,22 @@ CREATE TABLE IF NOT EXISTS reviews (
 );
 `);
 
+// Live databases created before the 'member' default landed have role='customer'
+// on every row and a legacy column default. Reclassify non-buyers once; purchase
+// fulfillment promotes member -> customer from here on.
+const MEMBER_MIGRATION_KEY = "migration_member_roles";
+const migrationDone = db
+  .prepare("SELECT value FROM settings WHERE key = ?")
+  .get(MEMBER_MIGRATION_KEY);
+if (!migrationDone) {
+  db.prepare(
+    `UPDATE users SET role = 'member'
+     WHERE role = 'customer'
+       AND id NOT IN (SELECT user_id FROM orders WHERE status = 'paid')`,
+  ).run();
+  db.prepare("INSERT INTO settings (key, value) VALUES (?, '1')").run(MEMBER_MIGRATION_KEY);
+}
+
 export interface UserRow {
   id: number;
   discord_id: string;

@@ -60,7 +60,7 @@ if (!Astro.locals.user.isAdmin) return Astro.redirect("/");
       const roleTd = document.createElement("td");
       const roleSel = document.createElement("select");
       roleSel.className = "form-input admin-role-select";
-      const roles = ["customer", "developer", "staff", "owner"];
+      const roles = ["member", "customer", "developer", "staff", "owner"];
       if (!roles.includes(u.role)) roles.unshift(u.role);
       for (const r of roles) {
         const opt = document.createElement("option");

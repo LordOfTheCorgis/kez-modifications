@@ -38,7 +38,7 @@ export const GET: APIRoute = async ({ cookies, url, clientAddress }) => {
     : null;
 
   db.prepare(
-    `INSERT INTO users (discord_id, name, email, image) VALUES (?, ?, ?, ?)
+    `INSERT INTO users (discord_id, name, email, image, role) VALUES (?, ?, ?, ?, 'member')
      ON CONFLICT(discord_id) DO UPDATE SET name = excluded.name, email = excluded.email, image = excluded.image`,
   ).run(discordUser.id, name, discordUser.email, image);
 
