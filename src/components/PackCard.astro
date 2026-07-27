@@ -8,8 +8,6 @@ interface Props {
 
 const { pack, owned = false } = Astro.props;
 const price = pack.price === 0 ? "Free" : `$${(pack.price / 100).toFixed(2)}`;
-const shortDesc =
-  pack.description.length > 120 ? `${pack.description.slice(0, 117)}…` : pack.description;
 ---
 
 <a class="product-card" href={`/product/${pack.id}`}>
@@ -23,7 +21,6 @@ const shortDesc =
   </div>
   <div class="product-body">
     <div class="product-name">{pack.name}</div>
-    <div class="product-desc">{shortDesc}</div>
     <div class="product-price">{price}</div>
     <span class="product-btn">{owned ? "View" : pack.price === 0 ? "Claim" : "Buy now"}</span>
   </div>

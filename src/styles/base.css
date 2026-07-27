@@ -380,12 +380,6 @@ main {
   margin-bottom: 0.4rem;
   line-height: 1.3;
 }
-.product-desc {
-  color: var(--muted);
-  font-size: 0.8rem;
-  line-height: 1.6;
-  margin-bottom: 0.75rem;
-}
 .product-price {
   font-weight: 700;
   font-size: 1.1rem;
