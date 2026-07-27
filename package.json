@@ -14,12 +14,15 @@
     "astro": "^5.13.0",
     "better-sqlite3": "^11.10.0",
     "dotenv": "^17.4.2",
+    "marked": "^18.0.7",
+    "sanitize-html": "^2.17.6",
     "stripe": "^17.7.0"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.13.0",
+    "@types/sanitize-html": "^2.16.1",
     "typescript": "^5.7.3"
   }
 }

@@ -3,6 +3,7 @@ import Layout from "../../layouts/Layout.astro";
 import { db } from "../../lib/db";
 import type { PackImageRow, PackRow } from "../../lib/db";
 import { ownsPack } from "../../lib/ownership";
+import { renderMarkdown, markdownToPlainText } from "../../lib/markdown";
 
 const pack = db
   .prepare("SELECT * FROM packs WHERE id = ?")
@@ -21,11 +22,13 @@ const user = Astro.locals.user;
 const owned = user ? ownsPack(user.id, user.discordRoles, pack) : false;
 const priceLabel = pack.price === 0 ? "Free" : `$${(pack.price / 100).toFixed(2)}`;
 const canceled = Astro.url.searchParams.get("canceled") === "1";
+const descriptionHtml = renderMarkdown(pack.description);
+const descriptionPlain = markdownToPlainText(pack.description);
 ---
 
 <Layout
   title={`${pack.name} - Kez Modifications`}
-  description={pack.description.slice(0, 200)}
+  description={descriptionPlain.slice(0, 200)}
   image={images[0] ?? "/images/logo.png"}
 >
   <div class="detail-layout">
@@ -54,7 +57,7 @@ const canceled = Astro.url.searchParams.get("canceled") === "1";
       <div class="detail-info">
         <div class="detail-name">{pack.name}</div>
         <div class="detail-price">{priceLabel}</div>
-        <div class="detail-desc">{pack.description}</div>
+        <div class="detail-desc" set:html={descriptionHtml} />
 
         {canceled && <div class="error-note">Checkout canceled — you have not been charged.</div>}
         <div class="error-note" id="buy-error"></div>
