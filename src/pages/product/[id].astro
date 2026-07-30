@@ -129,16 +129,18 @@ const descriptionPlain = markdownToPlainText(pack.description);
           discountCode: codeInput?.value.trim() || undefined,
         }),
       });
-      const data = await res.json();
-      if (data.url) {
+      // A server crash returns an HTML error page, so never let json() throw into
+      // the catch below — that would report a network fault the buyer cannot act on.
+      const data = await res.json().catch(() => null);
+      if (data?.url) {
         location.href = data.url;
         return;
       }
-      if (data.claimed) {
+      if (data?.claimed) {
         location.href = "/account?claimed=1";
         return;
       }
-      errBox.textContent = data.error ?? "Something went wrong";
+      errBox.textContent = data?.error ?? `Something went wrong (HTTP ${res.status})`;
     } catch {
       errBox.textContent = "Network error — try again";
     }

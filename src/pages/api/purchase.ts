@@ -2,7 +2,7 @@ import type { APIRoute } from "astro";
 import { db } from "../../lib/db";
 import type { DiscountRow, OrderRow, PackRow } from "../../lib/db";
 import { assignRole } from "../../lib/discord";
-import { getStripe } from "../../lib/stripe";
+import { getStripe, getStripeConfigError, stripeErrorMessage } from "../../lib/stripe";
 import { getSiteUrl } from "../../lib/settings";
 import { hasPaidOrder } from "../../lib/ownership";
 import { fulfillCheckoutSession } from "../../lib/fulfillment";
@@ -82,6 +82,12 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
     return json({ claimed: true });
   }
 
+  const configError = getStripeConfigError();
+  if (configError) {
+    await logToDiscord(`:warning: Checkout blocked — ${configError}`, "log");
+    return json({ error: configError }, 503);
+  }
+
   const stripe = getStripe();
   if (!stripe) return json({ error: "Payments are not configured yet" }, 503);
 
@@ -107,30 +113,48 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
   }
 
   const site = getSiteUrl();
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    line_items: [
-      {
-        quantity: 1,
-        price_data: {
-          currency: "usd",
-          unit_amount: price,
-          product_data: {
-            name: pack.name,
-            ...(pack.image_url?.startsWith("http") ? { images: [pack.image_url] } : {}),
+  // Stripe images must be publicly reachable; a localhost URL fails the whole session.
+  const productImage =
+    pack.image_url?.startsWith("https://") && !pack.image_url.includes("localhost")
+      ? [pack.image_url]
+      : undefined;
+
+  let session: Awaited<ReturnType<typeof stripe.checkout.sessions.create>>;
+  try {
+    session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: "usd",
+            unit_amount: price,
+            product_data: {
+              name: pack.name,
+              ...(productImage ? { images: productImage } : {}),
+            },
           },
         },
+      ],
+      success_url: `${site}/api/stripe/callback?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${site}/product/${pack.id}?canceled=1`,
+      metadata: {
+        packId: String(pack.id),
+        userId: String(user.id),
+        discordId: user.discordId,
+        ...(discount ? { discountCode: discount.code } : {}),
       },
-    ],
-    success_url: `${site}/api/stripe/callback?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${site}/product/${pack.id}?canceled=1`,
-    metadata: {
-      packId: String(pack.id),
-      userId: String(user.id),
-      discordId: user.discordId,
-      ...(discount ? { discountCode: discount.code } : {}),
-    },
-  });
+    });
+  } catch (err: unknown) {
+    // Without this, an unhandled throw returns a 500 HTML page and the buyer sees
+    // a misleading "Network error" instead of what Stripe actually complained about.
+    const message = stripeErrorMessage(err);
+    await logToDiscord(
+      `:warning: Stripe checkout failed for **${user.name}** on **${pack.name}** — ${message}`,
+      "log",
+    );
+    return json({ error: `Stripe could not start checkout: ${message}` }, 502);
+  }
 
   if (pending) {
     db.prepare(
