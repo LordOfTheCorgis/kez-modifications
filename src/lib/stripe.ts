@@ -1,10 +1,5 @@
 import Stripe from "stripe";
-import {
-  getStripeMode,
-  getStripeSecretKey,
-  stripeKeyProblem,
-  type StripeMode,
-} from "./settings";
+import { getStripeMode, getStripeSecretKey, type StripeMode } from "./settings";
 
 const clients = new Map<string, Stripe>();
 
@@ -28,8 +23,16 @@ export function getStripe(mode?: StripeMode): Stripe | null {
  */
 export function getStripeConfigError(mode?: StripeMode): string | null {
   const m = mode ?? getStripeMode();
-  const problem = stripeKeyProblem(getStripeSecretKey(m), m);
-  return problem ? `${problem} (Admin → Settings, Stripe is in ${m} mode.)` : null;
+  const key = getStripeSecretKey(m);
+  if (!key) return `Stripe is in ${m} mode but no ${m} secret key is saved in Admin → Settings.`;
+  if (key.startsWith("pk_"))
+    return "That is a publishable key. Paste the secret key (starts with sk_) instead.";
+  if (!/^(sk|rk)_/.test(key))
+    return "The saved key does not look like a Stripe secret key — it should start with sk_.";
+  const keyMode = key.includes("_live_") ? "live" : key.includes("_test_") ? "test" : null;
+  if (keyMode && keyMode !== m)
+    return `Stripe is in ${m} mode, but the key saved in the ${m} slot is a ${keyMode} key.`;
+  return null;
 }
 
 /** Stripe keys are redacted defensively; Stripe already masks them, but never rely on that. */

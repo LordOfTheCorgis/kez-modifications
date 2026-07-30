@@ -47,37 +47,6 @@ export function getStripeWebhookSecret(mode = getStripeMode()): string {
   return getSetting(`stripe_${mode}_webhook_secret`);
 }
 
-/**
- * Shows enough of a secret to confirm which key is stored (prefix + last 4)
- * without revealing it. Mirrors how Stripe's own dashboard displays keys.
- */
-export function maskSecret(value: string): string {
-  if (!value) return "";
-  if (value.length < 16) return "•••• (set)";
-  const prefix = /^((?:sk|rk|pk)_(?:test|live)_|whsec_)/.exec(value);
-  return `${prefix ? prefix[1] : value.slice(0, 4)}••••${value.slice(-4)}`;
-}
-
-/**
- * Validates the shape of a Stripe secret key for a given mode.
- * Returns a human-readable problem, or null if the key looks usable.
- * Pure string checks only — no network call, no Stripe import (keeps this
- * usable from both the admin save path and the checkout path).
- */
-export function stripeKeyProblem(key: string, mode: StripeMode): string | null {
-  if (!key) return `No ${mode} secret key is saved.`;
-  if (key.startsWith("pk_"))
-    return "That is a publishable key. Use the secret key (sk_) or a restricted key (rk_) instead.";
-  if (key.startsWith("whsec_"))
-    return "That is a webhook signing secret. It belongs in the webhook secret field, not the API key field.";
-  if (!/^(sk|rk)_(test|live)_/.test(key))
-    return "That does not look like a Stripe API key — it should start with sk_test_, sk_live_, rk_test_, or rk_live_.";
-  const keyMode = key.includes("_live_") ? "live" : "test";
-  if (keyMode !== mode)
-    return `That is a ${keyMode} key, but it was entered in the ${mode} field. Put it in the ${keyMode} field instead.`;
-  return null;
-}
-
 export function getSiteUrl(): string {
   const url = process.env.PUBLIC_SITE_URL ?? "http://localhost:4321";
   return url.replace(/\/+$/, "");
