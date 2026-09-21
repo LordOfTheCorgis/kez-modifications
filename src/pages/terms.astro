@@ -78,7 +78,7 @@ const closing =
 
     {
       sections.map((s) => (
-        <section class="legal-section">
+        <section class="legal-section" id={s.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}>
           <h2>{s.title}</h2>
           {s.body.map((p) => (
             <p>{p}</p>

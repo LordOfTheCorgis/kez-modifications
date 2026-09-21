@@ -73,6 +73,11 @@ const fields: { key: string; label: string; secret?: boolean; hint?: string }[] 
         <input class="form-input" id="discord_invite_url" data-key="discord_invite_url" type="text" placeholder="https://discord.gg/..." autocomplete="off" />
         <small class="label-hint">Shown as a "Join the Discord" button in the site footer. Leave blank to hide it.</small>
       </div>
+      <div class="form-row">
+        <label for="contact_email">Contact email</label>
+        <input class="form-input" id="contact_email" data-key="contact_email" type="email" placeholder="support@example.com" autocomplete="off" />
+        <small class="label-hint">Listed under Support in the site footer. Leave blank to hide it.</small>
+      </div>
       <div class="error-note" id="s-error"></div>
       <div class="admin-form-actions">
         <button class="btn btn-primary" type="submit">Save settings</button>

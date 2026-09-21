@@ -797,11 +797,52 @@ main {
 
 /* FOOTER */
 footer {
-  padding: 2rem;
   border-top: 1px solid var(--border);
-  text-align: center;
   color: var(--muted);
   font-size: 0.75rem;
+  background: var(--surface);
+}
+.footer-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 3rem 2rem 1.5rem;
+}
+.footer-grid {
+  display: grid;
+  grid-template-columns: 1.6fr repeat(3, 1fr);
+  gap: 2.5rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--border);
+}
+.footer-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.9rem;
+}
+.footer-logo {
+  color: var(--text);
+  font-weight: 800;
+  font-size: 0.9rem;
+  letter-spacing: 1.5px;
+}
+.footer-tagline {
+  max-width: 300px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.footer-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.footer-col h3 {
+  color: var(--text);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  margin-bottom: 0.35rem;
 }
 .footer-admin {
   display: inline-block;
@@ -813,13 +854,14 @@ footer {
 .footer-admin:hover {
   color: var(--muted);
 }
-.footer-links {
+.footer-bottom {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1.25rem;
-  margin-top: 1rem;
+  justify-content: space-between;
+  gap: 1rem;
   flex-wrap: wrap;
+  padding-top: 1.25rem;
+  color: var(--muted);
+  font-size: 0.7rem;
 }
 .btn-discord-sm {
   padding: 8px 16px;
@@ -833,11 +875,38 @@ footer {
 }
 .footer-link {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   transition: color 0.2s;
+  width: fit-content;
 }
-.footer-link:hover {
+.footer-link:hover,
+.footer-link:focus-visible {
   color: var(--text);
+  outline: none;
+}
+.footer-link:focus-visible {
+  text-decoration: underline;
+}
+@media (max-width: 900px) {
+  .footer-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .footer-brand {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 480px) {
+  .footer-grid {
+    grid-template-columns: 1fr;
+    gap: 1.75rem;
+  }
+  .footer-inner {
+    padding: 2.5rem 1.25rem 1.25rem;
+  }
+  .footer-bottom {
+    flex-direction: column;
+    gap: 0.4rem;
+  }
 }
 
 /* ─── LEGAL / TERMS ─── */
@@ -860,6 +929,8 @@ footer {
   margin-top: 0.5rem;
 }
 .legal-section {
+  /* footer anchors land under the fixed nav otherwise */
+  scroll-margin-top: calc(var(--nav-h) + 1.5rem);
   padding: 1.5rem 0;
   border-top: 1px solid var(--border);
 }

@@ -22,6 +22,7 @@ export const GET: APIRoute = ({ locals }) => {
     "webhook_log",
     "webhook_discounts",
     "discord_invite_url",
+    "contact_email",
   ]);
   const out: Record<string, string> = {};
   for (const key of keys) {
