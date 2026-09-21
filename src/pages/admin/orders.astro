@@ -8,6 +8,25 @@ if (!Astro.locals.user.isAdmin) return Astro.redirect("/");
 <AdminLayout section="orders" title="Orders">
   <div class="admin-section-header"><h1>Orders & sales log</h1></div>
 
+  <div class="admin-card">
+    <form class="admin-form" id="g-form">
+      <div class="admin-form-2col">
+        <div class="form-row">
+          <label for="g-discord">Discord ID <span class="label-hint">they must have signed in once</span></label>
+          <input class="form-input" id="g-discord" required pattern="[0-9]{15,22}" placeholder="123456789012345678" />
+        </div>
+        <div class="form-row">
+          <label for="g-pack">Pack</label>
+          <select class="form-input" id="g-pack" required></select>
+        </div>
+      </div>
+      <div class="error-note" id="g-error"></div>
+      <div class="admin-form-actions">
+        <button class="btn btn-primary" type="submit">Grant pack</button>
+      </div>
+    </form>
+  </div>
+
   <div class="admin-table-wrap">
     <table class="admin-table">
       <thead>
@@ -55,4 +74,39 @@ if (!Astro.locals.user.isAdmin) return Astro.redirect("/");
     }
   }
   load();
+
+  // Manual grant: for people who bought before the store existed, or got a pack
+  // some other way. Their Discord role doesn't unlock anything anymore.
+  const gForm = document.getElementById("g-form") as HTMLFormElement;
+  const gPack = document.getElementById("g-pack") as HTMLSelectElement;
+  const gErr = document.getElementById("g-error")!;
+  fetch("/api/admin/packs")
+    .then((r) => r.json())
+    .then((d) => {
+      for (const p of (d.packs ?? []) as { id: number; name: string }[]) {
+        const opt = document.createElement("option");
+        opt.value = String(p.id);
+        opt.textContent = p.name;
+        gPack.appendChild(opt);
+      }
+    });
+  gForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    gErr.textContent = "";
+    const res = await fetch("/api/admin/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        discord_id: (document.getElementById("g-discord") as HTMLInputElement).value.trim(),
+        pack_id: Number(gPack.value),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      gErr.textContent = data.error ?? `HTTP ${res.status}`;
+      return;
+    }
+    gForm.reset();
+    load();
+  });
 </script>
