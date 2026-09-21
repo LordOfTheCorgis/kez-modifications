@@ -3,6 +3,7 @@ import Layout from "../layouts/Layout.astro";
 import { db } from "../lib/db";
 import type { PackRow } from "../lib/db";
 import { ownsPack } from "../lib/ownership";
+import { CART_COOKIE } from "../lib/cart";
 
 const user = Astro.locals.user;
 
@@ -13,6 +14,11 @@ if (user) {
 }
 
 const q = Astro.url.searchParams;
+// landing here after checkout means the cart went through; drop it so the
+// same packs don't sit in the nav badge as "owned" leftovers
+if (q.get("purchase") === "success" || q.get("claimed") === "1") {
+  Astro.cookies.delete(CART_COOKIE, { path: "/" });
+}
 const notice = q.get("purchase") === "success"
   ? "Payment complete — your Discord role has been delivered."
   : q.get("claimed") === "1"

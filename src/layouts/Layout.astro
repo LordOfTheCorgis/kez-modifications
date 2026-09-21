@@ -2,6 +2,7 @@
 import "../styles/base.css";
 import "../styles/store.css";
 import { getSetting } from "../lib/settings";
+import { readCart } from "../lib/cart";
 
 interface Props {
   title?: string;
@@ -21,6 +22,7 @@ const user = Astro.locals.user;
 const siteUrl = import.meta.env.PUBLIC_SITE_URL ?? "";
 const ogImage = image.startsWith("http") ? image : `${siteUrl}${image}`;
 const discordInvite = getSetting("discord_invite_url");
+const cartCount = readCart(Astro.cookies).length;
 ---
 
 <!doctype html>
@@ -54,6 +56,12 @@ const discordInvite = getSetting("discord_invite_url");
           </li>
           <li>
             <a href="/account" class={`nav-link ${active === "account" ? "active" : ""}`}>Account</a>
+          </li>
+          <li>
+            <a href="/cart" class={`nav-link nav-cart ${active === "cart" ? "active" : ""}`}>
+              Cart
+              <span class="nav-cart-count" data-cart-count hidden={cartCount === 0}>{cartCount}</span>
+            </a>
           </li>
           {
             user?.isAdmin && (

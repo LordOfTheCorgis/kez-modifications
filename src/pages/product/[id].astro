@@ -87,14 +87,22 @@ const descriptionPlain = markdownToPlainText(pack.description);
               <button class="btn btn-primary btn-purchase" id="buy-btn" data-pack-id={pack.id}>
                 {pack.price === 0 ? "Claim for free" : `Purchase — ${priceLabel}`}
               </button>
+              <button class="btn btn-ghost btn-cart-add" id="cart-btn" data-pack-id={pack.id}>
+                Add to cart
+              </button>
             </>
           ) : (
-            <a
-              class="btn btn-primary btn-purchase"
-              href={`/api/auth/login?next=/product/${pack.id}`}
-            >
-              Sign in with Discord to {pack.price === 0 ? "claim" : "purchase"}
-            </a>
+            <>
+              <a
+                class="btn btn-primary btn-purchase"
+                href={`/api/auth/login?next=/product/${pack.id}`}
+              >
+                Sign in with Discord to {pack.price === 0 ? "claim" : "purchase"}
+              </a>
+              <button class="btn btn-ghost btn-cart-add" id="cart-btn" data-pack-id={pack.id}>
+                Add to cart
+              </button>
+            </>
           )
         }
       </div>
@@ -103,6 +111,31 @@ const descriptionPlain = markdownToPlainText(pack.description);
 </Layout>
 
 <script>
+  import { cart } from "../../lib/cart-client";
+
+  const cartBtn = document.getElementById("cart-btn") as HTMLButtonElement | null;
+  if (cartBtn) {
+    const id = Number(cartBtn.dataset.packId);
+    const paint = () => {
+      const inCart = cart.has(id);
+      cartBtn.textContent = inCart ? "In cart — view cart" : "Add to cart";
+      cartBtn.classList.toggle("btn-accent-outline", inCart);
+      cartBtn.classList.toggle("btn-ghost", !inCart);
+    };
+    paint();
+    cartBtn.addEventListener("click", () => {
+      if (cart.has(id)) {
+        location.href = "/cart";
+        return;
+      }
+      if (!cart.add(id)) {
+        document.getElementById("buy-error")!.textContent = "Your cart is full (20 items max)";
+        return;
+      }
+      paint();
+    });
+  }
+
   const thumbs = document.getElementById("thumbs");
   const mainImg = document.getElementById("main-img") as HTMLImageElement | null;
   thumbs?.addEventListener("click", (e) => {

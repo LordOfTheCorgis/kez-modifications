@@ -1,0 +1,132 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { db } from "../lib/db";
+import type { PackRow } from "../lib/db";
+import { readCart } from "../lib/cart";
+import { ownsPack } from "../lib/ownership";
+
+const user = Astro.locals.user;
+const ids = readCart(Astro.cookies);
+
+// keep the cookie's order so the list doesn't reshuffle every time you remove one
+const packs = ids
+  .map((id) => db.prepare("SELECT * FROM packs WHERE id = ?").get(id) as PackRow | undefined)
+  .filter((p): p is PackRow => !!p);
+const items = packs.map((pack) => ({
+  pack,
+  owned: user ? ownsPack(user.id, pack) : false,
+}));
+const buyable = items.filter((i) => !i.owned);
+const subtotal = buyable.reduce((sum, i) => sum + i.pack.price, 0);
+const fmt = (cents: number) => (cents === 0 ? "Free" : `$${(cents / 100).toFixed(2)}`);
+const canceled = Astro.url.searchParams.get("canceled") === "1";
+---
+
+<Layout title="Cart - Kez Modifications" active="cart">
+  <div class="cart-page">
+    <h1>Your cart</h1>
+
+    {canceled && <div class="error-note">Checkout canceled — you have not been charged.</div>}
+
+    {
+      items.length === 0 ? (
+        <p class="admin-empty">
+          Nothing in here yet — <a href="/shop" style="color:var(--accent);">browse the shop</a>.
+        </p>
+      ) : (
+        <>
+          <div id="cart-list">
+            {items.map(({ pack, owned }) => (
+              <div class={`cart-row ${owned ? "is-owned" : ""}`} data-pack-id={pack.id}>
+                {pack.image_url ? <img class="cart-thumb" src={pack.image_url} alt="" /> : <div class="cart-thumb" />}
+                <div class="cart-name">
+                  <a href={`/product/${pack.id}`}>{pack.name}</a>
+                  {owned && <small>You already own this — it won't be charged.</small>}
+                </div>
+                <div class="cart-price">{owned ? "Owned" : fmt(pack.price)}</div>
+                <button class="cart-remove" data-remove={pack.id} aria-label={`Remove ${pack.name} from cart`}>
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div class="cart-summary">
+            {buyable.length > 0 && subtotal > 0 && (
+              <input class="form-input" id="discount-input" placeholder="Discount code (optional)" autocomplete="off" />
+            )}
+            <div class="cart-total">
+              <span>
+                {buyable.length} item{buyable.length === 1 ? "" : "s"}
+              </span>
+              <strong id="cart-subtotal">{fmt(subtotal)}</strong>
+            </div>
+            <div class="error-note" id="cart-error" />
+            {
+              buyable.length === 0 ? (
+                <p class="admin-empty" style="padding:0;">Everything here is already yours.</p>
+              ) : user ? (
+                <button class="btn btn-primary btn-purchase" id="checkout-btn" data-ids={buyable.map((i) => i.pack.id).join(",")}>
+                  {subtotal === 0 ? "Claim for free" : `Checkout — ${fmt(subtotal)}`}
+                </button>
+              ) : (
+                <a class="btn btn-primary btn-purchase" href="/api/auth/login?next=/cart">
+                  Sign in with Discord to checkout
+                </a>
+              )
+            }
+          </div>
+        </>
+      )
+    }
+  </div>
+</Layout>
+
+<script>
+  import { cart } from "../lib/cart-client";
+
+  document.querySelectorAll<HTMLButtonElement>("[data-remove]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      cart.remove(Number(btn.dataset.remove));
+      // reload rather than re-render: the subtotal, the button label and the
+      // discount field all depend on server-side ownership checks anyway
+      location.reload();
+    });
+  });
+
+  const checkoutBtn = document.getElementById("checkout-btn") as HTMLButtonElement | null;
+  checkoutBtn?.addEventListener("click", async () => {
+    const errBox = document.getElementById("cart-error")!;
+    errBox.textContent = "";
+    checkoutBtn.disabled = true;
+    const label = checkoutBtn.textContent;
+    checkoutBtn.textContent = "Working…";
+    try {
+      const codeInput = document.getElementById("discount-input") as HTMLInputElement | null;
+      const res = await fetch("/api/purchase", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          packIds: (checkoutBtn.dataset.ids ?? "").split(",").map(Number),
+          discountCode: codeInput?.value.trim() || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (data?.url) {
+        // cart clears on the success page, not here, so a canceled checkout keeps it
+        location.href = data.url;
+        return;
+      }
+      if (data?.claimed) {
+        cart.clear();
+        location.href = "/account?claimed=1";
+        return;
+      }
+      errBox.textContent = data?.error ?? `Something went wrong (HTTP ${res.status})`;
+    } catch {
+      errBox.textContent = "Network error — try again";
+    }
+    checkoutBtn.disabled = false;
+    checkoutBtn.textContent = label;
+  });
+</script>
