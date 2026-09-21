@@ -147,8 +147,6 @@
 
 /* ─── CART ─── */
 .nav-cart {
-  display: inline-flex;
-  align-items: center;
   gap: 6px;
 }
 .nav-cart-count {

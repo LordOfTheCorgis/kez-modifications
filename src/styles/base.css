@@ -100,10 +100,15 @@ nav {
 }
 .nav-links {
   display: flex;
+  align-items: center;
   gap: 0.25rem;
   margin-left: auto;
 }
 .nav-link {
+  /* inline-flex on every link, not just the cart one, otherwise the cart's
+     padding grows its line box and the label sits a few px below the rest */
+  display: inline-flex;
+  align-items: center;
   font-weight: 500;
   font-size: 0.8rem;
   padding: 6px 14px;
