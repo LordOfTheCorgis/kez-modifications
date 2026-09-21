@@ -9,7 +9,7 @@ admin-configurable at `/admin` — nothing product-specific is hardcoded.
 
 ```bash
 npm install
-cp .env.example .env   # fill in the values below
+cp .env.example .env   # create it with the values below
 npm run dev            # http://localhost:4321
 npm run build && npm start   # production (node ./dist/server/entry.mjs)
 ```
@@ -32,14 +32,21 @@ sit **above** every role it grants.
 - Stripe mode toggle (test/live) with separate secret + webhook secret per mode.
 - Discord bot token + guild id (rotatable without redeploy).
 - Notification webhooks: `webhook_sales`, `webhook_log`, `webhook_discounts`.
-- Subscription tiers: `role_id_<tier>` + `stripe_price_<tier>` pairs
-  (gold/platinum shipped in the UI; any tier name works via the API).
 
-Stripe webhook endpoint: `POST {PUBLIC_SITE_URL}/api/stripe/webhook` with events
-`checkout.session.completed`, `customer.subscription.updated`,
-`customer.subscription.deleted`. Fulfillment is dual-path (browser callback +
-webhook), idempotent on the order's pending→paid transition, so replayed
-webhooks never double-fulfill.
+Stripe webhook endpoint: `POST {PUBLIC_SITE_URL}/api/stripe/webhook` with event
+`checkout.session.completed`. Fulfillment is dual-path (browser callback +
+webhook), idempotent on each order row's pending→paid transition, so replayed
+webhooks never double-fulfill. A cart checkout is one Stripe session with one
+order row per pack, all sharing the session id.
+
+## Ownership
+
+A pack is owned when the user has a `paid` order row for it (or for any
+`grants_all_access` pack). Holding the pack's Discord role does **not** count:
+roles are delivery, not proof of purchase. That distinction exists because
+handing out a generic "Customer" role for commissions used to unlock the whole
+catalog. People who bought before the store existed get a pack via
+`/admin` → Orders → Grant pack.
 
 ## Verify end-to-end (needs test credentials)
 
@@ -59,10 +66,10 @@ webhooks never double-fulfill.
 - Sessions: 256-bit tokens stored sha256-hashed; cookie httpOnly/secure/lax.
 - Middleware CSRF origin check on all state-changing requests (plus Astro's
   built-in form-post origin check); rate limits on `/api/auth/*`, `/api/purchase`,
-  `/api/subscribe`.
+  `/api/reviews`.
 - Product files live in `DATA_DIR/files` (never web-served); downloads go
-  through `/api/download/[packId]` which checks paid order / owned role /
-  all-access and logs each download.
+  through `/api/download/[packId]` which checks paid order / all-access and
+  logs each download.
 - Prices always computed server-side from the DB row; discounts validated
   server-side (active, window, max uses).
 - Stripe secrets are per-mode, stored in the settings table, masked in the
