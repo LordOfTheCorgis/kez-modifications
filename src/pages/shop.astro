@@ -64,7 +64,7 @@ const user = Astro.locals.user;
             {packs.map((pack) => (
               <PackCard
                 pack={pack}
-                owned={user ? ownsPack(user.id, user.discordRoles, pack) : false}
+                owned={user ? ownsPack(user.id, pack) : false}
               />
             ))}
           </div>

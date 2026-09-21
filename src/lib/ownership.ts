@@ -7,21 +7,23 @@ export function hasPaidOrder(userId: number, packId: number): boolean {
     .get(userId, packId);
 }
 
-/** All-access: ownership of any grants_all_access pack. */
-export function hasAllAccess(userId: number, discordRoles: string[]): boolean {
-  const allAccessPacks = db
-    .prepare("SELECT id, discord_role_id FROM packs WHERE grants_all_access = 1")
-    .all() as Pick<PackRow, "id" | "discord_role_id">[];
-  return allAccessPacks.some(
-    (p) =>
-      (p.discord_role_id && discordRoles.includes(p.discord_role_id)) ||
-      hasPaidOrder(userId, p.id),
-  );
+/** All-access: a paid order on any grants_all_access pack. */
+export function hasAllAccess(userId: number): boolean {
+  return !!db
+    .prepare(
+      `SELECT 1 FROM orders o JOIN packs p ON p.id = o.pack_id
+       WHERE o.user_id = ? AND o.status = 'paid' AND p.grants_all_access = 1`,
+    )
+    .get(userId);
 }
 
-/** Ownership = paid order OR currently-held Discord role OR active all-access. */
-export function ownsPack(userId: number, discordRoles: string[], pack: PackRow): boolean {
-  if (pack.discord_role_id && discordRoles.includes(pack.discord_role_id)) return true;
+/**
+ * Ownership = paid order, full stop. Holding the pack's Discord role used to
+ * count too, which blew up the moment the owner mapped packs to his generic
+ * "Customer" role: commission clients logged in and owned the whole catalog.
+ * Roles are delivery, not proof of purchase.
+ */
+export function ownsPack(userId: number, pack: PackRow): boolean {
   if (hasPaidOrder(userId, pack.id)) return true;
-  return hasAllAccess(userId, discordRoles);
+  return hasAllAccess(userId);
 }

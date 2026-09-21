@@ -61,7 +61,7 @@ const reviews = db
         </div>
         <div class="featured-grid">
           {featured.map((pack) => (
-            <PackCard pack={pack} owned={user ? ownsPack(user.id, user.discordRoles, pack) : false} />
+            <PackCard pack={pack} owned={user ? ownsPack(user.id, pack) : false} />
           ))}
         </div>
       </section>

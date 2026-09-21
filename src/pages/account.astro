@@ -9,7 +9,7 @@ const user = Astro.locals.user;
 let ownedPacks: PackRow[] = [];
 if (user) {
   const allPacks = db.prepare("SELECT * FROM packs ORDER BY sort_order, id").all() as PackRow[];
-  ownedPacks = allPacks.filter((p) => ownsPack(user.id, user.discordRoles, p));
+  ownedPacks = allPacks.filter((p) => ownsPack(user.id, p));
 }
 
 const q = Astro.url.searchParams;

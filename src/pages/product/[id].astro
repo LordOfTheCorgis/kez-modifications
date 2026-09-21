@@ -19,7 +19,7 @@ const images = [
 ];
 
 const user = Astro.locals.user;
-const owned = user ? ownsPack(user.id, user.discordRoles, pack) : false;
+const owned = user ? ownsPack(user.id, pack) : false;
 const priceLabel = pack.price === 0 ? "Free" : `$${(pack.price / 100).toFixed(2)}`;
 const canceled = Astro.url.searchParams.get("canceled") === "1";
 const descriptionHtml = renderMarkdown(pack.description);

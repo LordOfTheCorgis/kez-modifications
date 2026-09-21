@@ -15,9 +15,9 @@ export const GET: APIRoute = async ({ params, locals }) => {
     .get(Number(params.packId ?? 0)) as PackRow | undefined;
   if (!pack || !pack.file_url) return new Response("Not found", { status: 404 });
 
-  if (!ownsPack(user.id, user.discordRoles, pack)) {
+  if (!ownsPack(user.id, pack)) {
     console.error(
-      `[download] 403 — user ${user.id} (discord ${user.discordId}) does not own pack ${pack.id}; roles [${user.discordRoles.join(", ")}]`,
+      `[download] 403 — user ${user.id} (discord ${user.discordId}) does not own pack ${pack.id}`,
     );
     return new Response("You do not own this pack", { status: 403 });
   }

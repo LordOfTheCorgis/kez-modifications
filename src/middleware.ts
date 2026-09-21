@@ -1,10 +1,6 @@
 import { defineMiddleware } from "astro:middleware";
 import { SESSION_COOKIE, resolveSession, destroySessionsForUser } from "./lib/session";
-import { getGuildMember } from "./lib/discord";
 import { getSiteUrl } from "./lib/settings";
-
-const roleCache = new Map<number, { roles: string[]; at: number }>();
-const ROLE_CACHE_MS = 60_000;
 
 const STATE_CHANGING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -66,12 +62,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
       destroySessionsForUser(user.id);
       cookies.delete(SESSION_COOKIE, { path: "/" });
     } else {
-      let cached = roleCache.get(user.id);
-      if (!cached || Date.now() - cached.at > ROLE_CACHE_MS) {
-        const member = await getGuildMember(user.discord_id);
-        cached = { roles: member?.roles ?? cached?.roles ?? [], at: Date.now() };
-        roleCache.set(user.id, cached);
-      }
       const bootstrapAdmins = (process.env.ADMIN_DISCORD_IDS ?? "")
         .split(",")
         .map((s) => s.trim())
@@ -82,7 +72,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
         name: user.name,
         image: user.image,
         isAdmin: user.is_admin === 1 || bootstrapAdmins.includes(user.discord_id),
-        discordRoles: cached.roles,
       };
     }
   }

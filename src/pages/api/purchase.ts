@@ -54,10 +54,9 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
     price = Math.max(0, Math.round((pack.price * (100 - discount.percent)) / 100));
   }
 
-  // Duplicate-ownership guard BEFORE any Stripe session is created.
-  if (pack.discord_role_id && user.discordRoles.includes(pack.discord_role_id)) {
-    return json({ error: "You already own this" }, 409);
-  }
+  // Duplicate-ownership guard BEFORE any Stripe session is created. Only the
+  // order table counts; someone holding the role from a commission (or from a
+  // generic "Customer" role) should still be able to buy.
   if (hasPaidOrder(user.id, pack.id)) {
     return json({ error: "You already own this" }, 409);
   }

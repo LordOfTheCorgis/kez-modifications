@@ -8,7 +8,6 @@ declare namespace App {
       name: string;
       image: string | null;
       isAdmin: boolean;
-      discordRoles: string[];
     } | null;
   }
 }
