@@ -49,7 +49,7 @@ const contactEmail = getSetting("contact_email");
           <img src="/images/logo.png" alt="Kez Modifications logo" />
           <div class="nav-brand">KEZ <em>MODIFICATIONS</em></div>
         </a>
-        <ul class="nav-links">
+        <ul class="nav-links" id="nav-links">
           <li><a href="/" class={`nav-link ${active === "home" ? "active" : ""}`}>Home</a></li>
           <li><a href="/shop" class={`nav-link ${active === "shop" ? "active" : ""}`}>Shop</a></li>
           <li>
@@ -81,8 +81,19 @@ const contactEmail = getSetting("contact_email");
             <a href="/api/auth/login" class="btn btn-primary btn-sm">Sign in</a>
           )
         }
+        <button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="nav-links" aria-label="Menu">
+          <span></span><span></span><span></span>
+        </button>
       </div>
     </nav>
+
+    <script>
+      const toggle = document.getElementById("nav-toggle");
+      toggle?.addEventListener("click", () => {
+        const open = document.getElementById("nav-links")!.classList.toggle("open");
+        toggle.setAttribute("aria-expanded", String(open));
+      });
+    </script>
 
     <main class="page">
       <slot />
