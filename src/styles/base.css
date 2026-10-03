@@ -1861,6 +1861,10 @@ footer {
   padding: 1.25rem 1.25rem 1rem;
   border-bottom: 1px solid var(--border);
 }
+.ud-avatar[hidden] {
+  /* global img{display:block} beats the hidden attribute otherwise */
+  display: none;
+}
 .ud-avatar {
   width: 44px;
   height: 44px;
