@@ -1777,6 +1777,7 @@ footer {
   margin-bottom: 1rem;
 }
 .admin-readonly form:not(.admin-readonly-ok),
+.admin-readonly .admin-card:has(> form:not(.admin-readonly-ok)),
 .admin-readonly .admin-row-actions,
 .admin-readonly button:not(.settings-tab):not(.admin-readonly-ok),
 .admin-readonly input[type="file"] {
