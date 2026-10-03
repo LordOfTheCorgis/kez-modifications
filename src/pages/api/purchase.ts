@@ -80,7 +80,7 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
     }
     return true;
   });
-  if (!wanted.length) return json({ error: "You already own this" }, 409);
+  if (!wanted.length) return json({ error: "You already own or pre-ordered this" }, 409);
 
   const stripe = getStripe();
 
