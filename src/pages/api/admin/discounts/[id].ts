@@ -1,11 +1,11 @@
 import type { APIRoute } from "astro";
 import { db } from "../../../../lib/db";
 import type { DiscountRow } from "../../../../lib/db";
-import { json, requireAdmin } from "../../../../lib/admin";
+import { json, requirePerm } from "../../../../lib/admin";
 import { logToDiscord } from "../../../../lib/notify";
 
 export const PUT: APIRoute = async ({ request, params, locals }) => {
-  const denied = requireAdmin(locals);
+  const denied = requirePerm(locals, "discounts", 2);
   if (denied) return denied;
   const row = db
     .prepare("SELECT * FROM discounts WHERE id = ?")
@@ -30,7 +30,7 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
 };
 
 export const DELETE: APIRoute = ({ params, locals }) => {
-  const denied = requireAdmin(locals);
+  const denied = requirePerm(locals, "discounts", 2);
   if (denied) return denied;
   const info = db.prepare("DELETE FROM discounts WHERE id = ?").run(Number(params.id ?? 0));
   return info.changes ? json({ ok: true }) : json({ error: "Not found" }, 404);

@@ -1,15 +1,15 @@
 import type { APIRoute } from "astro";
 import { db } from "../../../lib/db";
-import { json, requireAdmin } from "../../../lib/admin";
+import { json, requirePerm } from "../../../lib/admin";
 
 export const GET: APIRoute = ({ locals }) => {
-  const denied = requireAdmin(locals);
+  const denied = requirePerm(locals, "products", 1);
   if (denied) return denied;
   return json({ categories: db.prepare("SELECT * FROM categories ORDER BY sort_order, id").all() });
 };
 
 export const POST: APIRoute = async ({ request, locals }) => {
-  const denied = requireAdmin(locals);
+  const denied = requirePerm(locals, "products", 2);
   if (denied) return denied;
   const b = (await request.json().catch(() => null)) as { name?: string } | null;
   const name = (b?.name ?? "").trim();

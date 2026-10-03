@@ -1,13 +1,13 @@
 import type { APIRoute } from "astro";
 import { db } from "../../../lib/db";
 import type { PackRow } from "../../../lib/db";
-import { json, requireAdmin } from "../../../lib/admin";
+import { json, requirePerm } from "../../../lib/admin";
 import { assignRole } from "../../../lib/discord";
 import { logToDiscord } from "../../../lib/notify";
 import { hasPaidOrder } from "../../../lib/ownership";
 
 export const GET: APIRoute = ({ locals }) => {
-  const denied = requireAdmin(locals);
+  const denied = requirePerm(locals, "orders", 1);
   if (denied) return denied;
   const orders = db
     .prepare(
@@ -27,7 +27,7 @@ export const GET: APIRoute = ({ locals }) => {
  * counting as ownership, and pre-store buyers have no order row.
  */
 export const POST: APIRoute = async ({ request, locals }) => {
-  const denied = requireAdmin(locals);
+  const denied = requirePerm(locals, "orders", 2);
   if (denied) return denied;
   const b = (await request.json().catch(() => null)) as {
     discord_id?: unknown;

@@ -4,14 +4,14 @@ import path from "node:path";
 import { db, PACK_STATUSES, PRIVATE_FILES_DIR, PUBLIC_UPLOADS_DIR } from "../../../../lib/db";
 import type { PackImageRow, PackRow, PackStatus } from "../../../../lib/db";
 import { releasePreorders } from "../../../../lib/fulfillment";
-import { json, requireAdmin } from "../../../../lib/admin";
+import { json, requirePerm } from "../../../../lib/admin";
 
 function getPack(id: string | undefined): PackRow | undefined {
   return db.prepare("SELECT * FROM packs WHERE id = ?").get(Number(id ?? 0)) as PackRow | undefined;
 }
 
 export const PUT: APIRoute = async ({ request, params, locals }) => {
-  const denied = requireAdmin(locals);
+  const denied = requirePerm(locals, "products", 2);
   if (denied) return denied;
   const pack = getPack(params.id);
   if (!pack) return json({ error: "Not found" }, 404);
@@ -58,7 +58,7 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
 
 /** Cascade: uploaded files first, then pack_images / download_logs / orders rows, then the pack. */
 export const DELETE: APIRoute = ({ params, locals }) => {
-  const denied = requireAdmin(locals);
+  const denied = requirePerm(locals, "products", 2);
   if (denied) return denied;
   const pack = getPack(params.id);
   if (!pack) return json({ error: "Not found" }, 404);

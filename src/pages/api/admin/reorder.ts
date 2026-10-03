@@ -1,12 +1,12 @@
 import type { APIRoute } from "astro";
 import { db } from "../../../lib/db";
-import { json, requireAdmin } from "../../../lib/admin";
+import { json, requirePerm } from "../../../lib/admin";
 
 const TABLES: Record<string, string> = { packs: "packs", categories: "categories" };
 
 /** Persists drag-to-reorder: body { table, ids } where ids is the new visual order. */
 export const POST: APIRoute = async ({ request, locals }) => {
-  const denied = requireAdmin(locals);
+  const denied = requirePerm(locals, "products", 2);
   if (denied) return denied;
   const b = (await request.json().catch(() => null)) as { table?: string; ids?: number[] } | null;
   const table = TABLES[b?.table ?? ""];

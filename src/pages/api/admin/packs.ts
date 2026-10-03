@@ -1,10 +1,10 @@
 import type { APIRoute } from "astro";
 import { db, PACK_STATUSES } from "../../../lib/db";
 import type { PackStatus } from "../../../lib/db";
-import { json, requireAdmin } from "../../../lib/admin";
+import { json, requirePerm } from "../../../lib/admin";
 
 export const GET: APIRoute = ({ locals }) => {
-  const denied = requireAdmin(locals);
+  const denied = requirePerm(locals, ["products", "orders"], 1);
   if (denied) return denied;
   const packs = db
     .prepare(
@@ -20,7 +20,7 @@ export const GET: APIRoute = ({ locals }) => {
 };
 
 export const POST: APIRoute = async ({ request, locals }) => {
-  const denied = requireAdmin(locals);
+  const denied = requirePerm(locals, "products", 2);
   if (denied) return denied;
   const b = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   if (!b || typeof b.name !== "string" || !b.name.trim()) return json({ error: "name required" }, 400);

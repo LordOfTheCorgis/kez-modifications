@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { PRIVATE_FILES_DIR, PUBLIC_UPLOADS_DIR } from "../../../lib/db";
-import { json, requireAdmin } from "../../../lib/admin";
+import { json, requirePerm } from "../../../lib/admin";
 
 const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".avif"]);
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -16,7 +16,7 @@ const MAX_FILE_BYTES = 500 * 1024 * 1024;
  * it is stored as packs.file_url and only ever read by /api/download.
  */
 export const POST: APIRoute = async ({ request, locals }) => {
-  const denied = requireAdmin(locals);
+  const denied = requirePerm(locals, ["products", "settings"], 2);
   if (denied) return denied;
 
   const form = await request.formData().catch(() => null);

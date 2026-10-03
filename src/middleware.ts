@@ -1,6 +1,7 @@
 import { defineMiddleware } from "astro:middleware";
 import { SESSION_COOKIE, resolveSession, destroySessionsForUser } from "./lib/session";
 import { getSiteUrl } from "./lib/settings";
+import { effectivePerms, isOwnerUser } from "./lib/perms";
 
 const STATE_CHANGING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -62,16 +63,15 @@ export const onRequest = defineMiddleware(async (context, next) => {
       destroySessionsForUser(user.id);
       cookies.delete(SESSION_COOKIE, { path: "/" });
     } else {
-      const bootstrapAdmins = (process.env.ADMIN_DISCORD_IDS ?? "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
+      const perms = effectivePerms(user);
       context.locals.user = {
         id: user.id,
         discordId: user.discord_id,
         name: user.name,
         image: user.image,
-        isAdmin: user.is_admin === 1 || bootstrapAdmins.includes(user.discord_id),
+        isAdmin: Object.values(perms).some((l) => l > 0),
+        isOwner: isOwnerUser(user),
+        perms,
       };
     }
   }

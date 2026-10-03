@@ -1,16 +1,16 @@
 import type { APIRoute } from "astro";
 import { db } from "../../../lib/db";
-import { json, requireAdmin } from "../../../lib/admin";
+import { json, requirePerm } from "../../../lib/admin";
 import { logToDiscord } from "../../../lib/notify";
 
 export const GET: APIRoute = ({ locals }) => {
-  const denied = requireAdmin(locals);
+  const denied = requirePerm(locals, "discounts", 1);
   if (denied) return denied;
   return json({ discounts: db.prepare("SELECT * FROM discounts ORDER BY id DESC").all() });
 };
 
 export const POST: APIRoute = async ({ request, locals }) => {
-  const denied = requireAdmin(locals);
+  const denied = requirePerm(locals, "discounts", 2);
   if (denied) return denied;
   const b = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const code = String(b?.code ?? "").trim();

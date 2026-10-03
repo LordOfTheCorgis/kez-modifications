@@ -1,9 +1,9 @@
 import type { APIRoute } from "astro";
 import { db } from "../../../lib/db";
-import { json, requireAdmin } from "../../../lib/admin";
+import { json, requirePerm } from "../../../lib/admin";
 
 export const GET: APIRoute = ({ locals }) => {
-  const denied = requireAdmin(locals);
+  const denied = requirePerm(locals, "reviews", 1);
   if (denied) return denied;
   const reviews = db
     .prepare(

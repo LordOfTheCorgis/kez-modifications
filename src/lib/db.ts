@@ -115,6 +115,15 @@ function addColumn(table: string, column: string, ddl: string) {
   if (!cols.some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
 }
 addColumn("packs", "status", "TEXT NOT NULL DEFAULT 'live'");
+// staff permissions. is_admin stays as "full access" so existing admins keep
+// working; everyone else gets a role and optional per-person overrides
+db.exec(`CREATE TABLE IF NOT EXISTS staff_roles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  perms TEXT NOT NULL DEFAULT '{}'
+)`);
+addColumn("users", "staff_role_id", "INTEGER REFERENCES staff_roles(id) ON DELETE SET NULL");
+addColumn("users", "perm_overrides", "TEXT NOT NULL DEFAULT '{}'");
 // set when a pre-order gets delivered, drives the "it's out" banner on /account
 addColumn("orders", "released_at", "TEXT");
 
@@ -143,7 +152,15 @@ export interface UserRow {
   role: string;
   is_admin: number;
   is_banned: number;
+  staff_role_id: number | null;
+  perm_overrides: string;
   created_at: string;
+}
+
+export interface StaffRoleRow {
+  id: number;
+  name: string;
+  perms: string;
 }
 
 export interface PackRow {
