@@ -30,7 +30,7 @@ function applyDiscount(price: number, discount: DiscountRow | null): number {
 }
 
 /**
- * Accepts either { packId } (product page) or { packIds: [] } (cart). Always
+ * Takes { packIds: [] } from the cart ({ packId } still works, nothing sends it anymore). Always
  * recomputes prices server-side. Packs the buyer already owns get dropped and
  * reported back as `skipped` instead of failing the whole checkout.
  */
@@ -160,7 +160,6 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
       },
     };
   });
-  const cancelTo = paidPacks.length === 1 ? `/product/${paidPacks[0].id}?canceled=1` : "/cart?canceled=1";
 
   let session: Awaited<ReturnType<typeof stripe.checkout.sessions.create>>;
   try {
@@ -168,7 +167,7 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
       mode: "payment",
       line_items: lineItems,
       success_url: `${site}/api/stripe/callback?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${site}${cancelTo}`,
+      cancel_url: `${site}/cart?canceled=1`,
       metadata: {
         // metadata values cap at 500 chars; 20 ids fits with room to spare
         packIds: paidPacks.map((p) => p.id).join(","),

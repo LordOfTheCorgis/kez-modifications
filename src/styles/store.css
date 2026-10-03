@@ -65,15 +65,6 @@
   margin-bottom: 1.25rem;
 }
 
-.discount-row {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-}
-.discount-row .form-input {
-  flex: 1;
-}
-
 .account-page {
   max-width: 900px;
   margin: 0 auto;
@@ -256,14 +247,6 @@
 }
 .cart-summary .btn-purchase {
   margin-top: 0.25rem;
-}
-.btn-cart-add {
-  margin-top: 0.6rem;
-  padding: 12px 28px;
-  font-size: 0.85rem;
-  border-radius: 8px;
-  justify-content: center;
-  width: 100%;
 }
 .btn:focus-visible,
 .cart-remove:focus-visible {

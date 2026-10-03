@@ -21,7 +21,6 @@ const images = [
 const user = Astro.locals.user;
 const owned = user ? ownsPack(user.id, pack) : false;
 const priceLabel = pack.price === 0 ? "Free" : `$${(pack.price / 100).toFixed(2)}`;
-const canceled = Astro.url.searchParams.get("canceled") === "1";
 const descriptionHtml = renderMarkdown(pack.description);
 const descriptionPlain = markdownToPlainText(pack.description);
 ---
@@ -59,7 +58,6 @@ const descriptionPlain = markdownToPlainText(pack.description);
         <div class="detail-price">{priceLabel}</div>
         <div class="detail-desc" set:html={descriptionHtml} />
 
-        {canceled && <div class="error-note">Checkout canceled — you have not been charged.</div>}
         <div class="error-note" id="buy-error"></div>
 
         {
@@ -72,37 +70,12 @@ const descriptionPlain = markdownToPlainText(pack.description);
                 </a>
               )}
             </>
-          ) : user ? (
-            <>
-              {pack.price > 0 && (
-                <div class="discount-row">
-                  <input
-                    class="form-input"
-                    id="discount-input"
-                    placeholder="Discount code (optional)"
-                    autocomplete="off"
-                  />
-                </div>
-              )}
-              <button class="btn btn-primary btn-purchase" id="buy-btn" data-pack-id={pack.id}>
-                {pack.price === 0 ? "Claim for free" : `Purchase — ${priceLabel}`}
-              </button>
-              <button class="btn btn-ghost btn-cart-add" id="cart-btn" data-pack-id={pack.id}>
-                Add to cart
-              </button>
-            </>
           ) : (
-            <>
-              <a
-                class="btn btn-primary btn-purchase"
-                href={`/api/auth/login?next=/product/${pack.id}`}
-              >
-                Sign in with Discord to {pack.price === 0 ? "claim" : "purchase"}
-              </a>
-              <button class="btn btn-ghost btn-cart-add" id="cart-btn" data-pack-id={pack.id}>
-                Add to cart
-              </button>
-            </>
+            // everything goes through the cart now, free packs included. sign-in
+            // and the discount code both happen there, so no branching on user here
+            <button class="btn btn-primary btn-purchase" id="cart-btn" data-pack-id={pack.id}>
+              Add to Cart
+            </button>
           )
         }
       </div>
@@ -118,9 +91,9 @@ const descriptionPlain = markdownToPlainText(pack.description);
     const id = Number(cartBtn.dataset.packId);
     const paint = () => {
       const inCart = cart.has(id);
-      cartBtn.textContent = inCart ? "In cart — view cart" : "Add to cart";
+      cartBtn.textContent = inCart ? "In cart, view cart" : "Add to Cart";
       cartBtn.classList.toggle("btn-accent-outline", inCart);
-      cartBtn.classList.toggle("btn-ghost", !inCart);
+      cartBtn.classList.toggle("btn-primary", !inCart);
     };
     paint();
     cartBtn.addEventListener("click", () => {
@@ -144,40 +117,5 @@ const descriptionPlain = markdownToPlainText(pack.description);
     mainImg.src = t.dataset.src ?? mainImg.src;
     thumbs.querySelectorAll(".detail-thumb").forEach((el) => el.classList.remove("active"));
     t.classList.add("active");
-  });
-
-  const buyBtn = document.getElementById("buy-btn") as HTMLButtonElement | null;
-  buyBtn?.addEventListener("click", async () => {
-    const errBox = document.getElementById("buy-error")!;
-    errBox.textContent = "";
-    buyBtn.disabled = true;
-    buyBtn.textContent = "Working…";
-    try {
-      const codeInput = document.getElementById("discount-input") as HTMLInputElement | null;
-      const res = await fetch("/api/purchase", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          packId: Number(buyBtn.dataset.packId),
-          discountCode: codeInput?.value.trim() || undefined,
-        }),
-      });
-      // A server crash returns an HTML error page, so never let json() throw into
-      // the catch below — that would report a network fault the buyer cannot act on.
-      const data = await res.json().catch(() => null);
-      if (data?.url) {
-        location.href = data.url;
-        return;
-      }
-      if (data?.claimed) {
-        location.href = "/account?claimed=1";
-        return;
-      }
-      errBox.textContent = data?.error ?? `Something went wrong (HTTP ${res.status})`;
-    } catch {
-      errBox.textContent = "Network error — try again";
-    }
-    buyBtn.disabled = false;
-    buyBtn.textContent = "Try again";
   });
 </script>
