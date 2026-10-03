@@ -42,10 +42,21 @@ export async function fulfillCheckoutSession(
       .all(session.id) as OrderRow[];
   }
 
+  // pre-order packs land in 'preorder' instead of 'paid': money's in, nothing
+  // gets delivered until releasePreorders() runs. Checked against the pack's
+  // status right now, not at checkout, so a pack released mid-checkout just
+  // delivers normally
   const flipStmt = db.prepare(
-    "UPDATE orders SET status = 'paid', updated_at = datetime('now') WHERE id = ? AND status = 'pending'",
+    "UPDATE orders SET status = ?, updated_at = datetime('now') WHERE id = ? AND status = 'pending'",
   );
-  const flipped = orders.filter((o) => flipStmt.run(o.id).changes > 0);
+  const packStatus = db.prepare("SELECT status FROM packs WHERE id = ?");
+  const preordered = new Set<number>();
+  const flipped = orders.filter((o) => {
+    const isPre = (packStatus.get(o.pack_id) as { status: string } | undefined)?.status === "preorder";
+    if (flipStmt.run(isPre ? "preorder" : "paid", o.id).changes === 0) return false;
+    if (isPre) preordered.add(o.id);
+    return true;
+  });
   if (flipped.length === 0) return { fulfilled: false, reason: "already fulfilled" };
 
   const buyerId = flipped[0].user_id;
@@ -62,6 +73,11 @@ export async function fulfillCheckoutSession(
   const lines: string[] = [];
   for (const order of flipped) {
     const pack = db.prepare("SELECT * FROM packs WHERE id = ?").get(order.pack_id) as PackRow | undefined;
+    if (preordered.has(order.id)) {
+      db.prepare("UPDATE orders SET delivery_note = 'pre-order, delivers on release' WHERE id = ?").run(order.id);
+      lines.push(`**${pack?.name ?? `pack #${order.pack_id}`}** (pre-order)`);
+      continue;
+    }
     let note = "no discord role configured";
     if (pack?.discord_role_id && discordId) {
       const res = await assignRole(discordId, pack.discord_role_id);
@@ -78,4 +94,50 @@ export async function fulfillCheckoutSession(
     "sales",
   );
   return { fulfilled: true, reason: `${flipped.length} pack(s) delivered` };
+}
+
+/**
+ * Delivers every waiting pre-order for a pack and flips the pack live. Same
+ * trick as checkout: each row's preorder->paid UPDATE is conditional, so a
+ * double click (or two admins) can't grant twice.
+ */
+export async function releasePreorders(packId: number): Promise<{ delivered: number; failed: number }> {
+  const pack = db.prepare("SELECT * FROM packs WHERE id = ?").get(packId) as PackRow | undefined;
+  if (!pack) return { delivered: 0, failed: 0 };
+  // flip the pack first so checkouts finishing during the loop below go
+  // straight to 'paid' instead of sneaking in as fresh pre-orders nobody releases
+  db.prepare("UPDATE packs SET status = 'live' WHERE id = ?").run(packId);
+
+  const waiting = db
+    .prepare(
+      `SELECT o.*, u.discord_id FROM orders o JOIN users u ON u.id = o.user_id
+       WHERE o.pack_id = ? AND o.status = 'preorder' ORDER BY o.id`,
+    )
+    .all(packId) as (OrderRow & { discord_id: string })[];
+  const flip = db.prepare(
+    `UPDATE orders SET status = 'paid', released_at = datetime('now'), updated_at = datetime('now')
+     WHERE id = ? AND status = 'preorder'`,
+  );
+
+  let delivered = 0;
+  let failed = 0;
+  for (const order of waiting) {
+    if (flip.run(order.id).changes === 0) continue;
+    let note = "no discord role configured";
+    if (pack.discord_role_id) {
+      const res = await assignRole(order.discord_id, pack.discord_role_id);
+      note = res.ok ? "role assigned on release" : `role assignment failed on release: ${res.note}`;
+      if (!res.ok) failed++;
+    }
+    db.prepare("UPDATE orders SET delivery_note = ? WHERE id = ?").run(note, order.id);
+    db.prepare("UPDATE users SET role = 'customer' WHERE id = ? AND role = 'member'").run(order.user_id);
+    delivered++;
+  }
+
+  await logToDiscord(
+    `:rocket: **${pack.name}** released, delivered to ${delivered} pre-order${delivered === 1 ? "" : "s"}` +
+      (failed ? ` (${failed} role grant${failed === 1 ? "" : "s"} failed, check Orders)` : ""),
+    "sales",
+  );
+  return { delivered, failed };
 }

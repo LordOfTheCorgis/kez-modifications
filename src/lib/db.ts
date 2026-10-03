@@ -108,6 +108,16 @@ CREATE TABLE IF NOT EXISTS reviews (
 );
 `);
 
+// CREATE TABLE IF NOT EXISTS never touches an existing table, so columns added
+// after launch go in here. cheap enough to check on every boot
+function addColumn(table: string, column: string, ddl: string) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (!cols.some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+}
+addColumn("packs", "status", "TEXT NOT NULL DEFAULT 'live'");
+// set when a pre-order gets delivered, drives the "it's out" banner on /account
+addColumn("orders", "released_at", "TEXT");
+
 // Live databases created before the 'member' default landed have role='customer'
 // on every row and a legacy column default. Reclassify non-buyers once; purchase
 // fulfillment promotes member -> customer from here on.
@@ -148,7 +158,16 @@ export interface PackRow {
   grants_all_access: number;
   is_featured: number;
   sort_order: number;
+  status: PackStatus;
 }
+
+/**
+ * live: normal. hidden: off the shop, 404 for the public, owners keep it.
+ * preorder: sells now, delivers when an admin hits Release.
+ * coming_soon: visible, can't be bought.
+ */
+export type PackStatus = "live" | "hidden" | "preorder" | "coming_soon";
+export const PACK_STATUSES: PackStatus[] = ["live", "hidden", "preorder", "coming_soon"];
 
 export interface CategoryRow {
   id: number;
@@ -161,10 +180,12 @@ export interface OrderRow {
   user_id: number;
   pack_id: number;
   stripe_session_id: string | null;
-  status: "pending" | "paid";
+  // preorder = paid, waiting on the pack's release. not ownership yet
+  status: "pending" | "paid" | "preorder";
   amount: number | null;
   discount_code: string | null;
   delivery_note: string | null;
+  released_at: string | null;
   created_at: string;
   updated_at: string;
 }

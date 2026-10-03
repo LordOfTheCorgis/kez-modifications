@@ -4,7 +4,7 @@ import type { DiscountRow, PackRow } from "../../lib/db";
 import { assignRole } from "../../lib/discord";
 import { getStripe, getStripeConfigError, stripeErrorMessage } from "../../lib/stripe";
 import { getSiteUrl } from "../../lib/settings";
-import { hasPaidOrder } from "../../lib/ownership";
+import { hasBought } from "../../lib/ownership";
 import { fulfillCheckoutSession } from "../../lib/fulfillment";
 import { logToDiscord } from "../../lib/notify";
 import { rateLimit } from "../../lib/ratelimit";
@@ -61,6 +61,9 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
     .map((id) => db.prepare("SELECT * FROM packs WHERE id = ?").get(id) as PackRow | undefined)
     .filter((p): p is PackRow => !!p);
   if (packs.length !== packIds.length) return json({ error: "One of those packs no longer exists" }, 404);
+  // the cart page already greys these out, this is for stale tabs and curl
+  const unavailable = packs.find((p) => p.status === "hidden" || p.status === "coming_soon");
+  if (unavailable) return json({ error: `${unavailable.name} isn't available to buy right now` }, 409);
 
   let discount: DiscountRow | null = null;
   const codeInput = typeof body?.discountCode === "string" ? body.discountCode.trim() : "";
@@ -71,7 +74,7 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
 
   const skipped: string[] = [];
   let wanted = packs.filter((p) => {
-    if (hasPaidOrder(user.id, p.id)) {
+    if (hasBought(user.id, p.id)) {
       skipped.push(p.name);
       return false;
     }
@@ -107,7 +110,7 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
   }
   // re-check: the loop above may have just delivered something
   wanted = wanted.filter((p) => {
-    if (hasPaidOrder(user.id, p.id)) {
+    if (hasBought(user.id, p.id)) {
       skipped.push(p.name);
       return false;
     }
@@ -122,6 +125,14 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
   if (freePacks.length) {
     const claimed: string[] = [];
     for (const pack of freePacks) {
+      if (pack.status === "preorder") {
+        db.prepare(
+          `INSERT INTO orders (user_id, pack_id, status, amount, discount_code, delivery_note)
+           VALUES (?, ?, 'preorder', 0, ?, 'pre-order, delivers on release')`,
+        ).run(user.id, pack.id, discount?.code ?? null);
+        claimed.push(`**${pack.name}** (pre-order)`);
+        continue;
+      }
       let note = "no discord role configured";
       if (pack.discord_role_id) {
         const res = await assignRole(user.discordId, pack.discord_role_id);
