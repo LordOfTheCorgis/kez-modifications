@@ -1762,3 +1762,23 @@ footer {
 .pack-status-hidden { background: rgba(255, 255, 255, 0.08); color: var(--muted2); }
 .pack-status-preorder { background: rgba(168, 85, 247, 0.14); color: #c084fc; }
 .pack-status-coming_soon { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+
+/* view-only staff. ponytail: hides every form and action button with one
+   selector instead of threading a readOnly flag through 8 pages of DOM-building
+   scripts. the API refuses edits regardless, this is just so they don't see
+   buttons that 403. if a page ever needs a button that works read-only, give it
+   .admin-readonly-ok */
+.admin-readonly-note {
+  background: rgba(251, 191, 36, 0.1);
+  color: #fbbf24;
+  border-radius: var(--radius);
+  padding: 0.6rem 0.9rem;
+  font-size: 0.8rem;
+  margin-bottom: 1rem;
+}
+.admin-readonly form:not(.admin-readonly-ok),
+.admin-readonly .admin-row-actions,
+.admin-readonly button:not(.settings-tab):not(.admin-readonly-ok),
+.admin-readonly input[type="file"] {
+  display: none !important;
+}

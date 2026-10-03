@@ -1,8 +1,9 @@
 ---
 import AdminLayout from "../../layouts/AdminLayout.astro";
+import { can } from "../../lib/perms";
 
 if (!Astro.locals.user) return Astro.redirect("/api/auth/login?next=/admin/reviews");
-if (!Astro.locals.user.isAdmin) return Astro.redirect("/");
+if (!can(Astro.locals.user, "reviews")) return Astro.redirect("/admin");
 ---
 
 <AdminLayout section="reviews" title="Reviews">

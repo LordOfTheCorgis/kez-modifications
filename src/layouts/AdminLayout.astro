@@ -1,5 +1,7 @@
 ---
 import Layout from "./Layout.astro";
+import { can } from "../lib/perms";
+import type { Section } from "../lib/perms";
 
 interface Props {
   section: string;
@@ -7,17 +9,22 @@ interface Props {
 }
 
 const { section, title } = Astro.props;
+const user = Astro.locals.user;
 
-const items: [string, string][] = [
-  ["", "Products"],
-  ["categories", "Categories"],
-  ["discounts", "Discounts"],
-  ["orders", "Orders"],
-  ["commissions", "Commissions"],
-  ["reviews", "Reviews"],
-  ["staff", "Staff"],
-  ["settings", "Settings"],
+// [url slug, label, permission section]
+const items: [string, string, Section][] = [
+  ["", "Products", "products"],
+  ["categories", "Categories", "products"],
+  ["discounts", "Discounts", "discounts"],
+  ["orders", "Orders", "orders"],
+  ["commissions", "Commissions", "commissions"],
+  ["reviews", "Reviews", "reviews"],
+  ["staff", "Staff & Users", "users"],
+  ["settings", "Settings", "settings"],
 ];
+const visible = items.filter(([, , perm]) => can(user, perm));
+const current = items.find(([slug]) => (slug || "products") === section);
+const readOnly = !!current && !can(user, current[2], 2);
 ---
 
 <Layout title={`${title} - Kez Admin`} active="admin">
@@ -26,7 +33,7 @@ const items: [string, string][] = [
       <aside class="admin-sidebar">
         <div class="admin-sidebar-brand">Admin Panel</div>
         {
-          items.map(([slug, label]) => (
+          visible.map(([slug, label]) => (
             <a
               href={`/admin${slug ? `/${slug}` : ""}`}
               class={`admin-nav-item ${section === (slug || "products") ? "active" : ""}`}
@@ -38,9 +45,19 @@ const items: [string, string][] = [
         <div class="admin-sidebar-divider"></div>
         <a href="/" class="admin-nav-item">Back to Site</a>
       </aside>
-      <div class="admin-content">
+      <div class={`admin-content ${readOnly ? "admin-readonly" : ""}`}>
+        {readOnly && <div class="admin-readonly-note">View only. Ask the owner if you need to make changes here.</div>}
         <slot />
       </div>
     </div>
   </div>
 </Layout>
+
+<script>
+  // settings + commissions are forms *are* the content, so read-only staff
+  // see them greyed out instead of not at all. settings loads its values async,
+  // disabling now is fine, disabled inputs still take .value
+  document
+    .querySelectorAll<HTMLInputElement>(".admin-readonly .admin-readonly-ok :is(input, select, textarea)")
+    .forEach((el) => (el.disabled = true));
+</script>

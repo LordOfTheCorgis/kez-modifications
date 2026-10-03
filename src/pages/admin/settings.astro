@@ -1,8 +1,9 @@
 ---
 import AdminLayout from "../../layouts/AdminLayout.astro";
+import { can } from "../../lib/perms";
 
 if (!Astro.locals.user) return Astro.redirect("/api/auth/login?next=/admin/settings");
-if (!Astro.locals.user.isAdmin) return Astro.redirect("/");
+if (!can(Astro.locals.user, "settings")) return Astro.redirect("/admin");
 
 const tabs: [string, string][] = [
   ["stripe", "Stripe"],
@@ -38,7 +39,7 @@ const tabs: [string, string][] = [
   {/* one form across every tab so a single Save never drops what you typed on
       another tab. hidden panels still submit, which is the whole point */}
   <div class="admin-card">
-    <form class="admin-form" id="s-form">
+    <form class="admin-form admin-readonly-ok" id="s-form">
       <section role="tabpanel" id="panel-stripe" aria-labelledby="tab-stripe" class="settings-panel">
         <div class="form-row">
           <label for="stripe_mode">Stripe mode</label>

@@ -1,10 +1,17 @@
 ---
 import AdminLayout from "../../layouts/AdminLayout.astro";
+import { can, SECTION_KEYS } from "../../lib/perms";
 import { db } from "../../lib/db";
 import type { CategoryRow } from "../../lib/db";
 
 if (!Astro.locals.user) return Astro.redirect("/api/auth/login?next=/admin");
 if (!Astro.locals.user.isAdmin) return Astro.redirect("/");
+// /admin is the products page, but plenty of staff won't have products. send
+// them to the first thing they can actually open instead of bouncing to /
+if (!can(Astro.locals.user, "products")) {
+  const first = SECTION_KEYS.find((k) => can(Astro.locals.user, k));
+  return Astro.redirect(`/admin/${first === "users" ? "staff" : first}`);
+}
 
 const categories = db
   .prepare("SELECT * FROM categories ORDER BY sort_order, id")

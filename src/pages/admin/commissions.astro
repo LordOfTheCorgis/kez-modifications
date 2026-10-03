@@ -1,8 +1,9 @@
 ---
 import AdminLayout from "../../layouts/AdminLayout.astro";
+import { can } from "../../lib/perms";
 
 if (!Astro.locals.user) return Astro.redirect("/api/auth/login?next=/admin/commissions");
-if (!Astro.locals.user.isAdmin) return Astro.redirect("/");
+if (!can(Astro.locals.user, "commissions")) return Astro.redirect("/admin");
 ---
 
 <AdminLayout section="commissions" title="Commissions">
@@ -12,7 +13,7 @@ if (!Astro.locals.user.isAdmin) return Astro.redirect("/");
   </div>
 
   <div class="admin-card">
-    <form class="admin-form" id="comm-form">
+    <form class="admin-form admin-readonly-ok" id="comm-form">
       <div class="form-row">
         <label style="display:flex;align-items:center;gap:0.6rem;cursor:pointer;">
           <input type="checkbox" id="comm-open" />
