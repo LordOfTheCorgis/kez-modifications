@@ -15,8 +15,10 @@ const packs = ids
 const items = packs.map((pack) => ({
   pack,
   owned: user ? ownsPack(user.id, pack) : false,
+  // hidden or flipped back to coming soon after it went in the cart
+  unavailable: pack.status === "hidden" || pack.status === "coming_soon",
 }));
-const buyable = items.filter((i) => !i.owned);
+const buyable = items.filter((i) => !i.owned && !i.unavailable);
 const subtotal = buyable.reduce((sum, i) => sum + i.pack.price, 0);
 const fmt = (cents: number) => (cents === 0 ? "Free" : `$${(cents / 100).toFixed(2)}`);
 const canceled = Astro.url.searchParams.get("canceled") === "1";
@@ -36,14 +38,18 @@ const canceled = Astro.url.searchParams.get("canceled") === "1";
       ) : (
         <>
           <div id="cart-list">
-            {items.map(({ pack, owned }) => (
-              <div class={`cart-row ${owned ? "is-owned" : ""}`} data-pack-id={pack.id}>
+            {items.map(({ pack, owned, unavailable }) => (
+              <div class={`cart-row ${owned || unavailable ? "is-owned" : ""}`} data-pack-id={pack.id}>
                 {pack.image_url ? <img class="cart-thumb" src={pack.image_url} alt="" /> : <div class="cart-thumb" />}
                 <div class="cart-name">
                   <a href={`/product/${pack.id}`}>{pack.name}</a>
                   {owned && <small>You already own this — it won't be charged.</small>}
+                  {!owned && unavailable && <small>Not available right now, so it's left out of checkout.</small>}
+                  {!owned && !unavailable && pack.status === "preorder" && (
+                    <small>Pre-order: charged now, delivered the day it releases.</small>
+                  )}
                 </div>
-                <div class="cart-price">{owned ? "Owned" : fmt(pack.price)}</div>
+                <div class="cart-price">{owned ? "Owned" : unavailable ? "Unavailable" : fmt(pack.price)}</div>
                 <button class="cart-remove" data-remove={pack.id} aria-label={`Remove ${pack.name} from cart`}>
                   ×
                 </button>
@@ -64,7 +70,7 @@ const canceled = Astro.url.searchParams.get("canceled") === "1";
             <div class="error-note" id="cart-error" />
             {
               buyable.length === 0 ? (
-                <p class="admin-empty" style="padding:0;">Everything here is already yours.</p>
+                <p class="admin-empty" style="padding:0;">Nothing here can be checked out right now.</p>
               ) : user ? (
                 <button class="btn btn-primary btn-purchase" id="checkout-btn" data-ids={buyable.map((i) => i.pack.id).join(",")}>
                   {subtotal === 0 ? "Claim for free" : `Checkout — ${fmt(subtotal)}`}

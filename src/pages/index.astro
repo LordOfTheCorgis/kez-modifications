@@ -7,7 +7,7 @@ import { ownsPack } from "../lib/ownership";
 import { getHeroSlides } from "../lib/settings";
 
 const featured = db
-  .prepare("SELECT * FROM packs WHERE is_featured = 1 ORDER BY sort_order, id LIMIT 6")
+  .prepare("SELECT * FROM packs WHERE is_featured = 1 AND status != 'hidden' ORDER BY sort_order, id LIMIT 6")
   .all() as PackRow[];
 const user = Astro.locals.user;
 const slides = getHeroSlides();

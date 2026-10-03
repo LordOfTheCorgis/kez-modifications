@@ -8,13 +8,24 @@ interface Props {
 
 const { pack, owned = false } = Astro.props;
 const price = pack.price === 0 ? "Free" : `$${(pack.price / 100).toFixed(2)}`;
+const cta = owned
+  ? "View"
+  : pack.status === "coming_soon"
+    ? "Coming soon"
+    : pack.status === "preorder"
+      ? "Pre-order"
+      : pack.price === 0
+        ? "Claim"
+        : "Buy now";
 ---
 
 <a class="product-card" href={`/product/${pack.id}`}>
   <div class="product-img-wrap">
     <div class="card-badges">
       {owned && <span class="badge badge-owned">Owned</span>}
-      {!owned && pack.price === 0 && <span class="badge badge-free">Free</span>}
+      {pack.status === "preorder" && <span class="badge badge-preorder">Pre-Order</span>}
+      {pack.status === "coming_soon" && <span class="badge badge-soon">Coming Soon</span>}
+      {!owned && pack.price === 0 && pack.status !== "coming_soon" && <span class="badge badge-free">Free</span>}
       {pack.is_featured === 1 && <span class="badge badge-featured">Featured</span>}
     </div>
     {pack.image_url && <img src={pack.image_url} alt={pack.name} loading="lazy" />}
@@ -22,6 +33,6 @@ const price = pack.price === 0 ? "Free" : `$${(pack.price / 100).toFixed(2)}`;
   <div class="product-body">
     <div class="product-name">{pack.name}</div>
     <div class="product-price">{price}</div>
-    <span class="product-btn">{owned ? "View" : pack.price === 0 ? "Claim" : "Buy now"}</span>
+    <span class="product-btn">{cta}</span>
   </div>
 </a>

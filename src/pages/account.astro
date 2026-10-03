@@ -2,15 +2,32 @@
 import Layout from "../layouts/Layout.astro";
 import { db } from "../lib/db";
 import type { PackRow } from "../lib/db";
-import { ownsPack } from "../lib/ownership";
+import { isDownloadable, ownsPack } from "../lib/ownership";
 import { CART_COOKIE } from "../lib/cart";
 
 const user = Astro.locals.user;
 
 let ownedPacks: PackRow[] = [];
+let preorders: PackRow[] = [];
+let justReleased: string[] = [];
 if (user) {
   const allPacks = db.prepare("SELECT * FROM packs ORDER BY sort_order, id").all() as PackRow[];
   ownedPacks = allPacks.filter((p) => ownsPack(user.id, p));
+  preorders = db
+    .prepare(
+      `SELECT DISTINCT p.* FROM orders o JOIN packs p ON p.id = o.pack_id
+       WHERE o.user_id = ? AND o.status = 'preorder' ORDER BY p.sort_order, p.id`,
+    )
+    .all(user.id) as PackRow[];
+  // two weeks felt right, long enough that people who check in weekly still see it
+  justReleased = (
+    db
+      .prepare(
+        `SELECT DISTINCT p.name FROM orders o JOIN packs p ON p.id = o.pack_id
+         WHERE o.user_id = ? AND o.released_at > datetime('now', '-14 days')`,
+      )
+      .all(user.id) as { name: string }[]
+  ).map((r) => r.name);
 }
 
 const q = Astro.url.searchParams;
@@ -20,7 +37,9 @@ if (q.get("purchase") === "success" || q.get("claimed") === "1") {
   Astro.cookies.delete(CART_COOKIE, { path: "/" });
 }
 const notice = q.get("purchase") === "success"
-  ? "Payment complete — your Discord role has been delivered."
+  ? preorders.length
+    ? "Payment complete. Anything live is delivered; pre-orders arrive the day they release."
+    : "Payment complete — your Discord role has been delivered."
   : q.get("claimed") === "1"
     ? "Pack claimed — your Discord role has been delivered."
     : null;
@@ -39,6 +58,11 @@ const notice = q.get("purchase") === "success"
     ) : (
       <div class="account-page">
         {notice && <div class="success-note">{notice}</div>}
+        {justReleased.length > 0 && (
+          <div class="success-note">
+            Released: {justReleased.join(", ")}. Your pre-order is delivered, download it below.
+          </div>
+        )}
         <div class="account-header">
           {user.image && <img src={user.image} alt="" class="account-avatar" />}
           <div>
@@ -51,6 +75,19 @@ const notice = q.get("purchase") === "success"
             </button>
           </form>
         </div>
+
+        {preorders.length > 0 && (
+          <div class="account-section">
+            <h2>Pre-orders</h2>
+            {preorders.map((pack) => (
+              <div class="owned-row">
+                {pack.image_url ? <img class="owned-thumb" src={pack.image_url} alt="" /> : <div class="owned-thumb" />}
+                <div class="owned-name">{pack.name}</div>
+                <span class="badge badge-preorder">Awaiting release</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div class="account-section" id="packs">
           <h2>Your packs</h2>
@@ -70,7 +107,7 @@ const notice = q.get("purchase") === "success"
                 <a href={`/product/${pack.id}`} class="btn btn-ghost btn-sm">
                   View
                 </a>
-                {pack.file_url && (
+                {isDownloadable(pack) && (
                   <a href={`/api/download/${pack.id}`} class="btn btn-primary btn-sm">
                     Download
                   </a>

@@ -2,13 +2,15 @@
 import Layout from "../../layouts/Layout.astro";
 import { db } from "../../lib/db";
 import type { PackImageRow, PackRow } from "../../lib/db";
-import { ownsPack } from "../../lib/ownership";
+import { canView, isDownloadable, ownsPack } from "../../lib/ownership";
 import { renderMarkdown, markdownToPlainText } from "../../lib/markdown";
 
 const pack = db
   .prepare("SELECT * FROM packs WHERE id = ?")
   .get(Number(Astro.params.id ?? 0)) as PackRow | undefined;
-if (!pack) return new Response("Not found", { status: 404 });
+// hidden packs 404 for the public on purpose, a "this is hidden" page would
+// just announce that something's coming
+if (!pack || !canView(pack, Astro.locals.user)) return new Response("Not found", { status: 404 });
 
 const gallery = db
   .prepare("SELECT * FROM pack_images WHERE pack_id = ? ORDER BY sort_order, id")
@@ -20,6 +22,10 @@ const images = [
 
 const user = Astro.locals.user;
 const owned = user ? ownsPack(user.id, pack) : false;
+const preordered =
+  !owned &&
+  !!user &&
+  !!db.prepare("SELECT 1 FROM orders WHERE user_id = ? AND pack_id = ? AND status = 'preorder'").get(user.id, pack.id);
 const priceLabel = pack.price === 0 ? "Free" : `$${(pack.price / 100).toFixed(2)}`;
 const descriptionHtml = renderMarkdown(pack.description);
 const descriptionPlain = markdownToPlainText(pack.description);
@@ -54,6 +60,9 @@ const descriptionPlain = markdownToPlainText(pack.description);
       </div>
 
       <div class="detail-info">
+        {pack.status === "preorder" && <span class="badge badge-preorder" style="align-self:flex-start;">Pre-Order</span>}
+        {pack.status === "coming_soon" && <span class="badge badge-soon" style="align-self:flex-start;">Coming Soon</span>}
+        {pack.status === "hidden" && <span class="badge badge-soon" style="align-self:flex-start;">Hidden from shop</span>}
         <div class="detail-name">{pack.name}</div>
         <div class="detail-price">{priceLabel}</div>
         <div class="detail-desc" set:html={descriptionHtml} />
@@ -64,18 +73,30 @@ const descriptionPlain = markdownToPlainText(pack.description);
           owned ? (
             <>
               <span class="badge badge-owned" style="align-self:flex-start;">Owned</span>
-              {pack.file_url && (
+              {isDownloadable(pack) && (
                 <a class="btn btn-primary btn-purchase" href={`/api/download/${pack.id}`}>
                   Download
                 </a>
               )}
             </>
+          ) : preordered ? (
+            <>
+              <span class="badge badge-preorder" style="align-self:flex-start;">Pre-ordered</span>
+              <p class="detail-note">You're in. It lands in your account and your Discord role arrives the day it releases.</p>
+            </>
+          ) : pack.status === "coming_soon" ? (
+            <button class="btn btn-primary btn-purchase" disabled>Coming Soon</button>
           ) : (
             // everything goes through the cart now, free packs included. sign-in
             // and the discount code both happen there, so no branching on user here
             <button class="btn btn-primary btn-purchase" id="cart-btn" data-pack-id={pack.id}>
               Add to Cart
             </button>
+          )
+        }
+        {
+          !owned && !preordered && pack.status === "preorder" && (
+            <p class="detail-note">Pre-order: you pay now, and it's delivered to your account and Discord the day it releases.</p>
           )
         }
       </div>

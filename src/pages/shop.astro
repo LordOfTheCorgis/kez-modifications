@@ -15,18 +15,18 @@ const activeCategory = rawCategory ? Number(rawCategory) : null;
 const packs = (
   activeCategory
     ? db
-        .prepare("SELECT * FROM packs WHERE category_id = ? ORDER BY sort_order, id")
+        .prepare("SELECT * FROM packs WHERE category_id = ? AND status != 'hidden' ORDER BY sort_order, id")
         .all(activeCategory)
-    : db.prepare("SELECT * FROM packs ORDER BY sort_order, id").all()
+    : db.prepare("SELECT * FROM packs WHERE status != 'hidden' ORDER BY sort_order, id").all()
 ) as PackRow[];
 
 const counts = new Map<number, number>();
 for (const row of db
-  .prepare("SELECT category_id, COUNT(*) AS n FROM packs GROUP BY category_id")
+  .prepare("SELECT category_id, COUNT(*) AS n FROM packs WHERE status != 'hidden' GROUP BY category_id")
   .all() as { category_id: number | null; n: number }[]) {
   if (row.category_id !== null) counts.set(row.category_id, row.n);
 }
-const total = (db.prepare("SELECT COUNT(*) AS n FROM packs").get() as { n: number }).n;
+const total = (db.prepare("SELECT COUNT(*) AS n FROM packs WHERE status != 'hidden'").get() as { n: number }).n;
 const user = Astro.locals.user;
 ---
 

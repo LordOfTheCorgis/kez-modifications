@@ -4,7 +4,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { db, PRIVATE_FILES_DIR } from "../../../lib/db";
 import type { PackRow } from "../../../lib/db";
-import { ownsPack } from "../../../lib/ownership";
+import { isDownloadable, ownsPack } from "../../../lib/ownership";
 
 export const GET: APIRoute = async ({ params, locals }) => {
   const user = locals.user;
@@ -14,6 +14,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
     .prepare("SELECT * FROM packs WHERE id = ?")
     .get(Number(params.packId ?? 0)) as PackRow | undefined;
   if (!pack || !pack.file_url) return new Response("Not found", { status: 404 });
+  if (!isDownloadable(pack)) return new Response("Not released yet", { status: 403 });
 
   if (!ownsPack(user.id, pack)) {
     console.error(

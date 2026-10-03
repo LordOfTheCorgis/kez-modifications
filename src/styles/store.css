@@ -370,3 +370,20 @@
     padding: 1.5rem 1rem 4rem;
   }
 }
+.badge-preorder {
+  background: rgba(168, 85, 247, 0.14);
+  color: #c084fc;
+}
+.badge-soon {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--muted2);
+}
+.detail-note {
+  color: var(--muted2);
+  font-size: 0.8rem;
+  margin-top: 0.6rem;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
