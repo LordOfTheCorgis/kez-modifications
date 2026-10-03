@@ -30,6 +30,7 @@ sit **above** every role it grants.
 ## Configuration (in /admin → Settings)
 
 - Stripe mode toggle (test/live) with separate secret + webhook secret per mode.
+- Tabs: Stripe, Discord, Webhooks, Homepage (slideshow images), General.
 - Discord bot token + guild id (rotatable without redeploy).
 - Notification webhooks: `webhook_sales`, `webhook_log`, `webhook_discounts`.
 
@@ -47,6 +48,22 @@ roles are delivery, not proof of purchase. That distinction exists because
 handing out a generic "Customer" role for commissions used to unlock the whole
 catalog. People who bought before the store existed get a pack via
 `/admin` → Orders → Grant pack.
+
+## Product status
+
+Each pack is **Live**, **Hidden** (off the shop, 404 for the public, owners
+keep downloads), **Pre-Order** (sells now, order sits as `preorder` with no role
+or download until an admin hits **Release** on the Products table), or
+**Coming Soon** (visible, not buyable). Saving a pre-order pack as Live also
+releases it. Release is idempotent per order row, same as checkout.
+
+## Staff access
+
+`is_admin` = full access to every section. Everyone else gets a staff role
+(none / view / edit per section) plus optional per-person overrides, managed
+under Staff & Users. Managing staff is owner-only: anyone in
+`ADMIN_DISCORD_IDS` or with the `owner` role label. Every `/api/admin/*` route
+checks its own section; the UI hiding buttons for view-only staff is cosmetic.
 
 ## Verify end-to-end (needs test credentials)
 
