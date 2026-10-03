@@ -262,6 +262,11 @@
   align-items: center;
   justify-content: center;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
+  /* inter's digits ride ~1px above the box center at this size (font metrics
+     round weird at 10px). 2px top padding on a fixed 18px box = 1px shift down.
+     tried text-box-trim first, chrome ignores it on flex containers */
+  padding-top: 2px;
 }
 .nav-cart-count[hidden] {
   display: none;
