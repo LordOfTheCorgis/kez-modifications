@@ -56,9 +56,6 @@ const contactEmail = getSetting("contact_email");
             <a href="/commissions" class={`nav-link ${active === "commissions" ? "active" : ""}`}>Commissions</a>
           </li>
           <li>
-            <a href="/account" class={`nav-link ${active === "account" ? "active" : ""}`}>Account</a>
-          </li>
-          <li>
             <a href="/cart" class={`nav-link nav-cart ${active === "cart" ? "active" : ""}`}>
               Cart
               <span class="nav-cart-count" data-cart-count hidden={cartCount === 0}>{cartCount}</span>
@@ -71,12 +68,46 @@ const contactEmail = getSetting("contact_email");
               </li>
             )
           }
+          {/* hamburger-only copies of the avatar menu. on desktop these are hidden
+              and the dropdown below does the job; on mobile it's the other way round */}
+          {
+            user && (
+              <>
+                <li class="nav-mobile-only">
+                  <a href="/account" class={`nav-link ${active === "account" ? "active" : ""}`}>My Account</a>
+                </li>
+                <li class="nav-mobile-only">
+                  <a href="/account#packs" class="nav-link">Downloads</a>
+                </li>
+                <li class="nav-mobile-only">
+                  <form method="post" action="/api/auth/logout">
+                    <button type="submit" class="nav-link nav-link-btn">Log out</button>
+                  </form>
+                </li>
+              </>
+            )
+          }
         </ul>
         {
           user ? (
-            <a href="/account" class="nav-user" title={user.name}>
-              {user.image && <img src={user.image} alt="" class="nav-avatar" />}
-            </a>
+            <details class="nav-user" id="nav-user">
+              <summary aria-label={`Account menu for ${user.name}`} title={user.name}>
+                {user.image ? (
+                  <img src={user.image} alt="" class="nav-avatar" />
+                ) : (
+                  <span class="nav-avatar nav-avatar-fallback">{user.name.slice(0, 1).toUpperCase()}</span>
+                )}
+                <svg class="nav-user-caret" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" /></svg>
+              </summary>
+              <div class="nav-menu">
+                <div class="nav-menu-name">{user.name}</div>
+                <a href="/account" class="nav-menu-item">My Account</a>
+                <a href="/account#packs" class="nav-menu-item">Downloads</a>
+                <form method="post" action="/api/auth/logout">
+                  <button type="submit" class="nav-menu-item">Log out</button>
+                </form>
+              </div>
+            </details>
           ) : (
             <a href="/api/auth/login" class="btn btn-primary btn-sm">Sign in</a>
           )
@@ -93,6 +124,21 @@ const contactEmail = getSetting("contact_email");
         const open = document.getElementById("nav-links")!.classList.toggle("open");
         toggle.setAttribute("aria-expanded", String(open));
       });
+
+      // <details> handles open/close + keyboard for free, it just doesn't close
+      // when you click elsewhere or hit escape, which every real menu does
+      const userMenu = document.getElementById("nav-user") as HTMLDetailsElement | null;
+      if (userMenu) {
+        document.addEventListener("click", (e) => {
+          if (userMenu.open && !userMenu.contains(e.target as Node)) userMenu.open = false;
+        });
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "Escape" && userMenu.open) {
+            userMenu.open = false;
+            userMenu.querySelector("summary")?.focus();
+          }
+        });
+      }
     </script>
 
     <main class="page">
