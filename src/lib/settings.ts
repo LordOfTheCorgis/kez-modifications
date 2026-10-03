@@ -51,3 +51,20 @@ export function getSiteUrl(): string {
   const url = process.env.PUBLIC_SITE_URL ?? "http://localhost:4321";
   return url.replace(/\/+$/, "");
 }
+
+/**
+ * Homepage slideshow images, stored as a JSON array under hero_slides. Only
+ * our own uploads or https urls get through, so a bad paste can't inject
+ * something weird into a style/src attribute.
+ */
+export function getHeroSlides(): string[] {
+  try {
+    const parsed = JSON.parse(getSetting("hero_slides") || "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (u): u is string => typeof u === "string" && (/^\/uploads\/[\w.-]+$/.test(u) || /^https:\/\/\S+$/.test(u)),
+    );
+  } catch {
+    return [];
+  }
+}

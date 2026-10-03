@@ -4,11 +4,13 @@ import PackCard from "../components/PackCard.astro";
 import { db } from "../lib/db";
 import type { PackRow } from "../lib/db";
 import { ownsPack } from "../lib/ownership";
+import { getHeroSlides } from "../lib/settings";
 
 const featured = db
   .prepare("SELECT * FROM packs WHERE is_featured = 1 ORDER BY sort_order, id LIMIT 6")
   .all() as PackRow[];
 const user = Astro.locals.user;
+const slides = getHeroSlides();
 
 interface ReviewCard {
   rating: number;
@@ -27,7 +29,22 @@ const reviews = db
 ---
 
 <Layout active="home">
-  <section class="hero">
+  <section class={`hero ${slides.length ? "hero-has-slides" : ""}`}>
+    {
+      slides.length > 0 && (
+        <div class="hero-slides" aria-hidden="true">
+          {slides.map((src, i) => (
+            <img
+              class={`hero-slide ${i === 0 ? "is-active" : ""}`}
+              src={src}
+              alt=""
+              loading={i === 0 ? "eager" : "lazy"}
+              decoding="async"
+            />
+          ))}
+        </div>
+      )
+    }
     <img src="/images/logo.png" class="hero-logo" alt="Kez Modifications" />
     <h1>Kez Modifications</h1>
     <p>
@@ -193,4 +210,19 @@ const reviews = db
     form.style.display = "none";
     document.getElementById("review-thanks")!.style.display = "flex";
   });
+</script>
+
+<script>
+  // one timer, swap a class, CSS does the fade. reduced-motion folks just get slide 1
+  const slides = [...document.querySelectorAll<HTMLImageElement>(".hero-slide")];
+  if (slides.length > 1 && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    let i = 0;
+    setInterval(() => {
+      // background tabs throttle this anyway, no point fading nobody's watching
+      if (document.hidden) return;
+      slides[i].classList.remove("is-active");
+      i = (i + 1) % slides.length;
+      slides[i].classList.add("is-active");
+    }, 6000);
+  }
 </script>
