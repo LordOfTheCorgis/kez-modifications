@@ -134,7 +134,9 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
       claimed.push(`**${pack.name}** (${note})`);
     }
     db.prepare("UPDATE users SET role = 'customer' WHERE id = ? AND role = 'member'").run(user.id);
-    if (discount) db.prepare("UPDATE discounts SET uses = uses + 1 WHERE id = ?").run(discount.id);
+    // mixed cart: the stripe fulfillment bumps the code once for the whole session,
+    // so only count it here when nothing's headed to stripe. otherwise one checkout = 2 uses
+    if (discount && !paidPacks.length) db.prepare("UPDATE discounts SET uses = uses + 1 WHERE id = ?").run(discount.id);
     await logToDiscord(`:gift: **${user.name}** claimed free ${claimed.join(", ")}`, "sales");
   }
   if (!paidPacks.length) return json({ claimed: true, skipped });
