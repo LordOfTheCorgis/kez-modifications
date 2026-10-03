@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
-import { db } from "../../../lib/db";
+import { db, PACK_STATUSES } from "../../../lib/db";
+import type { PackStatus } from "../../../lib/db";
 import { json, requireAdmin } from "../../../lib/admin";
 
 export const GET: APIRoute = ({ locals }) => {
@@ -8,7 +9,8 @@ export const GET: APIRoute = ({ locals }) => {
   const packs = db
     .prepare(
       `SELECT p.*, c.name AS category_name,
-         (SELECT COUNT(*) FROM orders o WHERE o.pack_id = p.id AND o.status = 'paid') AS sales
+         (SELECT COUNT(*) FROM orders o WHERE o.pack_id = p.id AND o.status = 'paid') AS sales,
+         (SELECT COUNT(*) FROM orders o WHERE o.pack_id = p.id AND o.status = 'preorder') AS waiting
        FROM packs p LEFT JOIN categories c ON c.id = p.category_id
        ORDER BY p.sort_order, p.id`,
     )
@@ -28,8 +30,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const info = db
     .prepare(
       `INSERT INTO packs (name, description, price, image_url, file_url, category_id, discord_role_id,
-         grants_all_access, is_featured, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM packs))`,
+         grants_all_access, is_featured, status, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM packs))`,
     )
     .run(
       b.name.trim(),
@@ -41,6 +43,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       typeof b.discord_role_id === "string" && b.discord_role_id ? b.discord_role_id : null,
       b.grants_all_access ? 1 : 0,
       b.is_featured ? 1 : 0,
+      PACK_STATUSES.includes(b.status as PackStatus) ? (b.status as PackStatus) : "live",
     );
   const packId = Number(info.lastInsertRowid);
   if (Array.isArray(b.gallery)) {

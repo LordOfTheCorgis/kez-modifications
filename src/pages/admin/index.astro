@@ -34,6 +34,15 @@ const categories = db
           </select>
         </div>
         <div class="form-row">
+          <label for="p-status">Status</label>
+          <select class="form-input" id="p-status">
+            <option value="live">Live: in the shop, buyable</option>
+            <option value="hidden">Hidden: off the shop, owners keep it</option>
+            <option value="preorder">Pre-Order: sells now, delivers on Release</option>
+            <option value="coming_soon">Coming Soon: visible, can't buy</option>
+          </select>
+        </div>
+        <div class="form-row">
           <label for="p-role">Discord role granted on purchase</label>
           <select class="form-input" id="p-role">
             <option value="">— none —</option>
@@ -80,9 +89,9 @@ const categories = db
   <div class="admin-table-wrap">
     <table class="admin-table">
       <thead>
-        <tr><th></th><th>Pack</th><th>Price</th><th>Category</th><th>Role</th><th>Sales</th><th></th></tr>
+        <tr><th></th><th>Pack</th><th>Status</th><th>Price</th><th>Category</th><th>Role</th><th>Sales</th><th></th></tr>
       </thead>
-      <tbody id="pack-rows"><tr><td colspan="7" class="admin-empty">Loading…</td></tr></tbody>
+      <tbody id="pack-rows"><tr><td colspan="8" class="admin-empty">Loading…</td></tr></tbody>
     </table>
   </div>
 </AdminLayout>
@@ -93,7 +102,9 @@ const categories = db
     image_url: string | null; file_url: string | null; category_id: number | null;
     discord_role_id: string | null; grants_all_access: number; is_featured: number;
     category_name: string | null; sales: number;
+    status: "live" | "hidden" | "preorder" | "coming_soon"; waiting: number;
   };
+  const STATUS_LABEL = { live: "Live", hidden: "Hidden", preorder: "Pre-Order", coming_soon: "Coming Soon" };
   type PackImage = { pack_id: number; url: string };
 
   let packs: Pack[] = [];
@@ -171,6 +182,7 @@ const categories = db
     ($("p-desc") as unknown as HTMLTextAreaElement).value = p.description;
     $("p-allaccess").checked = p.grants_all_access === 1;
     $("p-featured").checked = p.is_featured === 1;
+    ($("p-status") as unknown as HTMLSelectElement).value = p.status;
     uploadedImage = p.image_url ?? "";
     uploadedGallery = imagesByPack.get(p.id) ?? [];
     uploadedFile = p.file_url ?? "";
@@ -192,6 +204,7 @@ const categories = db
       description: ($("p-desc") as unknown as HTMLTextAreaElement).value,
       grants_all_access: $("p-allaccess").checked,
       is_featured: $("p-featured").checked,
+      status: ($("p-status") as unknown as HTMLSelectElement).value,
       image_url: uploadedImage,
       gallery: uploadedGallery,
       file_url: uploadedFile,
@@ -213,7 +226,7 @@ const categories = db
     if (packs.length === 0) {
       const tr = document.createElement("tr");
       const td = document.createElement("td");
-      td.colSpan = 7;
+      td.colSpan = 8;
       td.className = "admin-empty";
       td.textContent = "No packs yet — create one above.";
       tr.appendChild(td);
@@ -244,6 +257,13 @@ const categories = db
       cell.appendChild(nm);
       nameTd.appendChild(cell);
       tr.appendChild(nameTd);
+
+      const statusTd = document.createElement("td");
+      const pill = document.createElement("span");
+      pill.className = `status-pill pack-status-${p.status}`;
+      pill.textContent = STATUS_LABEL[p.status] + (p.status === "preorder" ? ` · ${p.waiting} waiting` : "");
+      statusTd.appendChild(pill);
+      tr.appendChild(statusTd);
 
       const price = document.createElement("td");
       price.textContent = p.price === 0 ? "Free" : `$${(p.price / 100).toFixed(2)}`;
@@ -282,6 +302,25 @@ const categories = db
           err((e2 as Error).message);
         }
       });
+      if (p.status === "preorder") {
+        const relBtn = document.createElement("button");
+        relBtn.className = "admin-edit-btn";
+        relBtn.textContent = "Release";
+        relBtn.addEventListener("click", async () => {
+          const who = p.waiting === 1 ? "1 buyer" : `${p.waiting} buyers`;
+          if (!confirm(`Release "${p.name}"? It goes live and ${who} get their role and download now.`)) return;
+          relBtn.disabled = true;
+          try {
+            const r = await api(`/api/admin/packs/${p.id}/release`, "POST");
+            err(r.failed ? `Released, but ${r.failed} role grant(s) failed. Check Orders.` : "");
+            await load();
+          } catch (e2) {
+            err((e2 as Error).message);
+            relBtn.disabled = false;
+          }
+        });
+        wrap.append(relBtn);
+      }
       wrap.append(editBtn, delBtn);
       actions.appendChild(wrap);
       tr.appendChild(actions);

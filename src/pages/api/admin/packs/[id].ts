@@ -1,8 +1,9 @@
 import type { APIRoute } from "astro";
 import fs from "node:fs";
 import path from "node:path";
-import { db, PRIVATE_FILES_DIR, PUBLIC_UPLOADS_DIR } from "../../../../lib/db";
-import type { PackImageRow, PackRow } from "../../../../lib/db";
+import { db, PACK_STATUSES, PRIVATE_FILES_DIR, PUBLIC_UPLOADS_DIR } from "../../../../lib/db";
+import type { PackImageRow, PackRow, PackStatus } from "../../../../lib/db";
+import { releasePreorders } from "../../../../lib/fulfillment";
 import { json, requireAdmin } from "../../../../lib/admin";
 
 function getPack(id: string | undefined): PackRow | undefined {
@@ -18,10 +19,11 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
   if (!b || typeof b.name !== "string" || !b.name.trim()) return json({ error: "name required" }, 400);
   const price = Math.max(0, Math.round(Number(b.price ?? 0)));
   if (!Number.isFinite(price)) return json({ error: "invalid price" }, 400);
+  const status: PackStatus = PACK_STATUSES.includes(b.status as PackStatus) ? (b.status as PackStatus) : pack.status;
 
   db.prepare(
     `UPDATE packs SET name = ?, description = ?, price = ?, image_url = ?, file_url = ?,
-       category_id = ?, discord_role_id = ?, grants_all_access = ?, is_featured = ? WHERE id = ?`,
+       category_id = ?, discord_role_id = ?, grants_all_access = ?, is_featured = ?, status = ? WHERE id = ?`,
   ).run(
     b.name.trim(),
     typeof b.description === "string" ? b.description : "",
@@ -32,8 +34,17 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
     typeof b.discord_role_id === "string" && b.discord_role_id ? b.discord_role_id : null,
     b.grants_all_access ? 1 : 0,
     b.is_featured ? 1 : 0,
+    status,
     pack.id,
   );
+
+  // flipping a pre-order pack to Live by hand has to deliver what people paid
+  // for, otherwise their orders sit in 'preorder' forever with nothing to release them
+  let released: Awaited<ReturnType<typeof releasePreorders>> | null = null;
+  if (status === "live") {
+    const waiting = db.prepare("SELECT 1 FROM orders WHERE pack_id = ? AND status = 'preorder'").get(pack.id);
+    if (waiting) released = await releasePreorders(pack.id);
+  }
 
   if (Array.isArray(b.gallery)) {
     db.prepare("DELETE FROM pack_images WHERE pack_id = ?").run(pack.id);
@@ -42,7 +53,7 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
       if (typeof url === "string" && url) ins.run(pack.id, url, i);
     });
   }
-  return json({ ok: true });
+  return json({ ok: true, released });
 };
 
 /** Cascade: uploaded files first, then pack_images / download_logs / orders rows, then the pack. */
