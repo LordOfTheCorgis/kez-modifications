@@ -17,12 +17,14 @@ export const GET: APIRoute = ({ locals }) => {
     "stripe_test_webhook_secret",
     "stripe_live_secret_key",
     "stripe_live_webhook_secret",
+    "discord_bot_token",
     "discord_guild_id",
     "webhook_sales",
     "webhook_log",
     "webhook_discounts",
     "discord_invite_url",
     "contact_email",
+    "hero_slides",
   ]);
   const out: Record<string, string> = {};
   for (const key of keys) {

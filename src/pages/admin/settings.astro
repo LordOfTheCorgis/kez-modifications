@@ -4,80 +4,132 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
 if (!Astro.locals.user) return Astro.redirect("/api/auth/login?next=/admin/settings");
 if (!Astro.locals.user.isAdmin) return Astro.redirect("/");
 
-const fields: { key: string; label: string; secret?: boolean; hint?: string }[] = [
-  { key: "discord_guild_id", label: "Discord guild (server) id" },
-  { key: "stripe_test_secret_key", label: "Stripe TEST secret key", secret: true },
-  { key: "stripe_test_webhook_secret", label: "Stripe TEST webhook secret", secret: true },
-  { key: "stripe_live_secret_key", label: "Stripe LIVE secret key", secret: true },
-  { key: "stripe_live_webhook_secret", label: "Stripe LIVE webhook secret", secret: true },
-  { key: "webhook_sales", label: "Sales feed webhook URL", hint: "Discord webhook for sale notifications" },
-  { key: "webhook_log", label: "Log feed webhook URL" },
-  { key: "webhook_discounts", label: "Discounts feed webhook URL" },
+const tabs: [string, string][] = [
+  ["stripe", "Stripe"],
+  ["discord", "Discord"],
+  ["webhooks", "Webhooks"],
+  ["homepage", "Homepage"],
+  ["general", "General"],
 ];
 ---
 
 <AdminLayout section="settings" title="Settings">
   <div class="admin-section-header"><h1>Settings</h1></div>
 
+  <div class="settings-tabs" role="tablist" aria-label="Settings sections">
+    {
+      tabs.map(([id, label], i) => (
+        <button
+          type="button"
+          role="tab"
+          class="settings-tab"
+          id={`tab-${id}`}
+          aria-controls={`panel-${id}`}
+          aria-selected={i === 0 ? "true" : "false"}
+          tabindex={i === 0 ? 0 : -1}
+          data-tab={id}
+        >
+          {label}
+        </button>
+      ))
+    }
+  </div>
+
+  {/* one form across every tab so a single Save never drops what you typed on
+      another tab. hidden panels still submit, which is the whole point */}
   <div class="admin-card">
     <form class="admin-form" id="s-form">
-      <div class="form-row">
-        <label for="stripe_mode">Stripe mode</label>
-        <select class="form-input" id="stripe_mode" data-key="stripe_mode">
-          <option value="test">Test</option>
-          <option value="live">Live</option>
-        </select>
-        <small class="label-hint">Test and live keys are stored separately — switching modes never mixes them.</small>
-      </div>
-      <div class="form-row">
-        <label for="discord_guild_id">{fields[0].label}</label>
-        <input class="form-input" id="discord_guild_id" data-key="discord_guild_id" type="text" autocomplete="off" />
-      </div>
-      <div class="admin-form-2col">
+      <section role="tabpanel" id="panel-stripe" aria-labelledby="tab-stripe" class="settings-panel">
         <div class="form-row">
-          <label for="stripe_test_secret_key">{fields[1].label}</label>
-          <input class="form-input" id="stripe_test_secret_key" data-key="stripe_test_secret_key" type="password" placeholder="leave blank to keep current" autocomplete="off" />
+          <label for="stripe_mode">Stripe mode</label>
+          <select class="form-input" id="stripe_mode" data-key="stripe_mode">
+            <option value="test">Test</option>
+            <option value="live">Live</option>
+          </select>
+          <small class="label-hint">Test and live keys are stored separately — switching modes never mixes them.</small>
+        </div>
+        <h3 class="settings-subhead">Test keys</h3>
+        <div class="admin-form-2col">
+          <div class="form-row">
+            <label for="stripe_test_secret_key">Secret key</label>
+            <input class="form-input" id="stripe_test_secret_key" data-key="stripe_test_secret_key" type="password" placeholder="leave blank to keep current" autocomplete="off" />
+          </div>
+          <div class="form-row">
+            <label for="stripe_test_webhook_secret">Webhook secret</label>
+            <input class="form-input" id="stripe_test_webhook_secret" data-key="stripe_test_webhook_secret" type="password" placeholder="leave blank to keep current" autocomplete="off" />
+          </div>
+        </div>
+        <h3 class="settings-subhead">Live keys</h3>
+        <div class="admin-form-2col">
+          <div class="form-row">
+            <label for="stripe_live_secret_key">Secret key</label>
+            <input class="form-input" id="stripe_live_secret_key" data-key="stripe_live_secret_key" type="password" placeholder="leave blank to keep current" autocomplete="off" />
+          </div>
+          <div class="form-row">
+            <label for="stripe_live_webhook_secret">Webhook secret</label>
+            <input class="form-input" id="stripe_live_webhook_secret" data-key="stripe_live_webhook_secret" type="password" placeholder="leave blank to keep current" autocomplete="off" />
+          </div>
+        </div>
+      </section>
+
+      <section role="tabpanel" id="panel-discord" aria-labelledby="tab-discord" class="settings-panel" hidden>
+        <div class="form-row">
+          <label for="discord_bot_token">Bot token</label>
+          <input class="form-input" id="discord_bot_token" data-key="discord_bot_token" type="password" placeholder="leave blank to keep current" autocomplete="off" />
+          <small class="label-hint">The bot that hands out pack roles. Its highest role has to sit above every role it grants.</small>
         </div>
         <div class="form-row">
-          <label for="stripe_live_secret_key">{fields[3].label}</label>
-          <input class="form-input" id="stripe_live_secret_key" data-key="stripe_live_secret_key" type="password" placeholder="leave blank to keep current" autocomplete="off" />
-        </div>
-      </div>
-      <div class="admin-form-2col">
-        <div class="form-row">
-          <label for="stripe_test_webhook_secret">{fields[2].label}</label>
-          <input class="form-input" id="stripe_test_webhook_secret" data-key="stripe_test_webhook_secret" type="password" placeholder="leave blank to keep current" autocomplete="off" />
+          <label for="discord_guild_id">Server (guild) id</label>
+          <input class="form-input" id="discord_guild_id" data-key="discord_guild_id" type="text" autocomplete="off" />
         </div>
         <div class="form-row">
-          <label for="stripe_live_webhook_secret">{fields[4].label}</label>
-          <input class="form-input" id="stripe_live_webhook_secret" data-key="stripe_live_webhook_secret" type="password" placeholder="leave blank to keep current" autocomplete="off" />
+          <label for="discord_invite_url">Invite URL</label>
+          <input class="form-input" id="discord_invite_url" data-key="discord_invite_url" type="text" placeholder="https://discord.gg/..." autocomplete="off" />
+          <small class="label-hint">Shown as a "Join the Discord" button in the site footer. Leave blank to hide it.</small>
         </div>
-      </div>
-      <div class="admin-form-2col">
+      </section>
+
+      <section role="tabpanel" id="panel-webhooks" aria-labelledby="tab-webhooks" class="settings-panel" hidden>
         <div class="form-row">
-          <label for="webhook_sales">{fields[5].label}</label>
-          <input class="form-input" id="webhook_sales" data-key="webhook_sales" type="text" placeholder="" autocomplete="off" />
-          <small class="label-hint">{fields[5].hint}</small>
+          <label for="webhook_sales">Sales feed</label>
+          <input class="form-input" id="webhook_sales" data-key="webhook_sales" type="text" autocomplete="off" />
+          <small class="label-hint">Every sale, free claim and pre-order release posts here.</small>
         </div>
         <div class="form-row">
-          <label for="webhook_log">{fields[6].label}</label>
-          <input class="form-input" id="webhook_log" data-key="webhook_log" type="text" placeholder="" autocomplete="off" />
+          <label for="webhook_log">Log feed</label>
+          <input class="form-input" id="webhook_log" data-key="webhook_log" type="text" autocomplete="off" />
+          <small class="label-hint">Errors: failed role grants, Stripe problems, blocked checkouts.</small>
         </div>
-      </div>
-      <div class="form-row">
-        <label for="webhook_discounts">{fields[7].label}</label>
-        <input class="form-input" id="webhook_discounts" data-key="webhook_discounts" type="text" placeholder="" autocomplete="off" />
-      </div>
-      <div class="form-row">
-        <label for="discord_invite_url">Discord invite URL</label>
-        <input class="form-input" id="discord_invite_url" data-key="discord_invite_url" type="text" placeholder="https://discord.gg/..." autocomplete="off" />
-        <small class="label-hint">Shown as a "Join the Discord" button in the site footer. Leave blank to hide it.</small>
-      </div>
-      <div class="form-row">
-        <label for="contact_email">Contact email</label>
-        <input class="form-input" id="contact_email" data-key="contact_email" type="email" placeholder="support@example.com" autocomplete="off" />
-        <small class="label-hint">Listed under Support in the site footer. Leave blank to hide it.</small>
-      </div>
+        <div class="form-row">
+          <label for="webhook_discounts">Discounts feed</label>
+          <input class="form-input" id="webhook_discounts" data-key="webhook_discounts" type="text" autocomplete="off" />
+        </div>
+      </section>
+
+      <section role="tabpanel" id="panel-homepage" aria-labelledby="tab-homepage" class="settings-panel" hidden>
+        <div class="form-row">
+          <label for="slide-upload">Slideshow images</label>
+          <small class="label-hint">
+            Cycles behind the logo on the homepage, six seconds each, with a blue tint and dark edges on top. Wide
+            shots work best, 1920px across or bigger. No images = no slideshow.
+          </small>
+        </div>
+        <input type="hidden" id="hero_slides" data-key="hero_slides" />
+        <ul class="slide-list" id="slide-list"></ul>
+        <div class="form-row">
+          <input class="form-input" id="slide-upload" type="file" accept="image/*" multiple />
+          <small class="label-hint" id="slide-status"></small>
+        </div>
+      </section>
+
+      <section role="tabpanel" id="panel-general" aria-labelledby="tab-general" class="settings-panel" hidden>
+        <div class="form-row">
+          <label for="contact_email">Contact email</label>
+          <input class="form-input" id="contact_email" data-key="contact_email" type="email" placeholder="support@example.com" autocomplete="off" />
+          <small class="label-hint">Listed under Support in the site footer. Leave blank to hide it.</small>
+        </div>
+      </section>
+
       <div class="error-note" id="s-error"></div>
       <div class="admin-form-actions">
         <button class="btn btn-primary" type="submit">Save settings</button>
@@ -90,6 +142,101 @@ const fields: { key: string; label: string; secret?: boolean; hint?: string }[] 
 <script>
   const err = (m: string) => (document.getElementById("s-error")!.textContent = m);
 
+  // ─── tabs ───
+  const tabs = [...document.querySelectorAll<HTMLButtonElement>(".settings-tab")];
+  function select(tab: HTMLButtonElement, focus = false) {
+    for (const t of tabs) {
+      const on = t === tab;
+      t.setAttribute("aria-selected", String(on));
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute("aria-controls")!)!.hidden = !on;
+    }
+    if (focus) tab.focus();
+    // so a reload (or a link from somewhere) lands back on the same tab
+    history.replaceState(null, "", `#${tab.dataset.tab}`);
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener("click", () => select(t));
+    t.addEventListener("keydown", (e) => {
+      const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+      if (!step) return;
+      e.preventDefault();
+      select(tabs[(i + step + tabs.length) % tabs.length], true);
+    });
+  });
+  const fromHash = tabs.find((t) => t.dataset.tab === location.hash.slice(1));
+  if (fromHash) select(fromHash);
+
+  // ─── slideshow list ───
+  let slides: string[] = [];
+  const slidesInput = document.getElementById("hero_slides") as HTMLInputElement;
+  const list = document.getElementById("slide-list")!;
+
+  function renderSlides() {
+    slidesInput.value = JSON.stringify(slides);
+    list.replaceChildren(
+      ...slides.map((url, i) => {
+        const li = document.createElement("li");
+        li.className = "slide-item";
+        const img = document.createElement("img");
+        img.src = url;
+        img.alt = `Slide ${i + 1}`;
+        const btn = (label: string, aria: string, fn: () => void, disabled = false) => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = "btn btn-ghost btn-sm";
+          b.textContent = label;
+          b.setAttribute("aria-label", aria);
+          b.disabled = disabled;
+          b.addEventListener("click", fn);
+          return b;
+        };
+        const move = (d: number) => () => {
+          [slides[i], slides[i + d]] = [slides[i + d], slides[i]];
+          renderSlides();
+        };
+        const actions = document.createElement("div");
+        actions.className = "slide-actions";
+        actions.append(
+          btn("↑", `Move slide ${i + 1} earlier`, move(-1), i === 0),
+          btn("↓", `Move slide ${i + 1} later`, move(1), i === slides.length - 1),
+          btn("Remove", `Remove slide ${i + 1}`, () => {
+            slides.splice(i, 1);
+            renderSlides();
+          }),
+        );
+        li.append(img, actions);
+        return li;
+      }),
+    );
+  }
+
+  document.getElementById("slide-upload")!.addEventListener("change", async (e) => {
+    const input = e.target as HTMLInputElement;
+    const status = document.getElementById("slide-status")!;
+    const files = [...(input.files ?? [])];
+    let done = 0;
+    for (const f of files) {
+      status.textContent = `Uploading ${done + 1} of ${files.length}…`;
+      const form = new FormData();
+      form.append("file", f);
+      form.append("kind", "image");
+      const res = await fetch("/api/admin/upload", { method: "POST", body: form });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.url) {
+        status.textContent = `${f.name}: ${data?.error ?? "upload failed"}`;
+        input.value = "";
+        return;
+      }
+      slides.push(data.url);
+      done++;
+      renderSlides();
+    }
+    input.value = "";
+    status.textContent = `${done} added. Hit Save to put them live.`;
+  });
+
+  // ─── load / save ───
   async function load() {
     const res = await fetch("/api/admin/settings");
     const data = await res.json();
@@ -106,6 +253,13 @@ const fields: { key: string; label: string; secret?: boolean; hint?: string }[] 
         el.value = value;
       }
     }
+    try {
+      const parsed = JSON.parse(slidesInput.value || "[]");
+      slides = Array.isArray(parsed) ? parsed.filter((u) => typeof u === "string") : [];
+    } catch {
+      slides = [];
+    }
+    renderSlides();
   }
 
   document.getElementById("s-form")!.addEventListener("submit", async (e) => {
