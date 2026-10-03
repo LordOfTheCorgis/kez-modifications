@@ -1,119 +1,490 @@
 ---
 import AdminLayout from "../../layouts/AdminLayout.astro";
-import { can } from "../../lib/perms";
+import { can, SECTIONS } from "../../lib/perms";
 
 if (!Astro.locals.user) return Astro.redirect("/api/auth/login?next=/admin/staff");
 if (!can(Astro.locals.user, "users")) return Astro.redirect("/admin");
+const isOwner = Astro.locals.user.isOwner;
 ---
 
-<AdminLayout section="staff" title="Staff">
+<AdminLayout section="staff" title="Staff & Users">
   <div class="admin-section-header"><h1>Staff & users</h1></div>
+
+  {
+    isOwner && (
+      <div class="settings-tabs" role="tablist" aria-label="Staff and users">
+        <button type="button" role="tab" class="settings-tab" id="tab-users" aria-controls="panel-users" aria-selected="true" data-tab="users">
+          Users
+        </button>
+        <button type="button" role="tab" class="settings-tab" id="tab-roles" aria-controls="panel-roles" aria-selected="false" tabindex="-1" data-tab="roles">
+          Staff roles
+        </button>
+      </div>
+    )
+  }
+
   <div class="error-note" id="u-error"></div>
 
-  <div class="admin-table-wrap">
-    <table class="admin-table">
-      <thead>
-        <tr><th>User</th><th>Discord ID</th><th>Role</th><th>Admin</th><th>Banned</th><th></th></tr>
-      </thead>
-      <tbody id="u-rows"><tr><td colspan="6" class="admin-empty">Loading…</td></tr></tbody>
-    </table>
-  </div>
+  <section id="panel-users" role={isOwner ? "tabpanel" : undefined} aria-labelledby={isOwner ? "tab-users" : undefined}>
+    <div class="users-toolbar">
+      <input class="form-input users-search" id="u-search" type="search" placeholder="Search by name or Discord ID" aria-label="Search users" autocomplete="off" />
+      <div class="users-filters" role="group" aria-label="Filter users">
+        {
+          [["all", "All"], ["staff", "Staff"], ["customers", "Customers"], ["banned", "Banned"]].map(([v, l], i) => (
+            <button type="button" class="users-filter admin-readonly-ok" data-filter={v} aria-pressed={i === 0 ? "true" : "false"}>
+              {l}
+            </button>
+          ))
+        }
+      </div>
+    </div>
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr><th>User</th><th>Discord ID</th><th>Access</th><th>Orders</th><th>Joined</th><th></th></tr>
+        </thead>
+        <tbody id="u-rows"><tr><td colspan="6" class="admin-empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  {
+    isOwner && (
+      <section id="panel-roles" role="tabpanel" aria-labelledby="tab-roles" hidden>
+        <p class="roles-intro">
+          A role is a bundle of access you hand to staff. View lets them look, Edit lets them change things. Staff management
+          itself stays with you and can't be given out.
+        </p>
+        <div id="roles-list" class="roles-list"></div>
+        <form class="admin-card roles-new" id="role-new">
+          <label for="role-new-name">New role</label>
+          <div class="roles-new-row">
+            <input class="form-input" id="role-new-name" placeholder="e.g. Support, Developer" maxlength="40" />
+            <button class="btn btn-primary" type="submit">Create role</button>
+          </div>
+        </form>
+      </section>
+    )
+  }
+
+  <dialog id="u-dialog" class="user-dialog" aria-labelledby="ud-name">
+    <div class="ud-head">
+      <img id="ud-avatar" class="ud-avatar" alt="" />
+      <div>
+        <h2 id="ud-name"></h2>
+        <p id="ud-meta"></p>
+      </div>
+      <button type="button" class="ud-close admin-readonly-ok" id="ud-close" aria-label="Close">×</button>
+    </div>
+    <div class="ud-body">
+      <div class="ud-stats" id="ud-stats"></div>
+
+      {
+        isOwner && (
+          <div class="ud-section" id="ud-access">
+            <h3>Access</h3>
+            <label class="ud-check">
+              <input type="checkbox" id="ud-full" /> Full admin <span class="label-hint">every section, edit. Overrides the role below.</span>
+            </label>
+            <div class="form-row">
+              <label for="ud-role">Staff role</label>
+              <select class="form-input" id="ud-role" />
+            </div>
+            <details class="ud-overrides">
+              <summary>Per-person overrides</summary>
+              <p class="label-hint">Anything not set to Inherit replaces what the role gives, including taking access away.</p>
+              <div class="perm-grid" id="ud-perm-grid">
+                {
+                  Object.entries(SECTIONS).map(([key, label]) => (
+                    <>
+                      <label for={`ud-perm-${key}`}>{label}</label>
+                      <select class="form-input" id={`ud-perm-${key}`} data-section={key}>
+                        <option value="">Inherit</option>
+                        <option value="0">None</option>
+                        <option value="1">View</option>
+                        <option value="2">Edit</option>
+                      </select>
+                    </>
+                  ))
+                }
+              </div>
+            </details>
+            <div class="admin-form-actions">
+              <button type="button" class="btn btn-primary btn-sm" id="ud-save">Save access</button>
+              <span id="ud-saved" class="ud-saved"></span>
+            </div>
+          </div>
+        )
+      }
+
+      <div class="ud-section">
+        <h3>Owns</h3>
+        <ul id="ud-owned" class="ud-list"></ul>
+      </div>
+      <div class="ud-section">
+        <h3>Orders</h3>
+        <ul id="ud-orders" class="ud-list"></ul>
+      </div>
+      <div class="ud-section ud-danger">
+        <button type="button" class="btn btn-ghost btn-sm" id="ud-ban"></button>
+      </div>
+    </div>
+  </dialog>
 </AdminLayout>
 
 <script>
   type User = {
-    id: number; discord_id: string; name: string; role: string;
-    is_admin: number; is_banned: number;
+    id: number; discord_id: string; name: string; image: string | null; role: string;
+    is_admin: number; is_banned: number; is_owner: boolean; staff_role_id: number | null;
+    staff_role_name: string | null; perm_overrides: string; paid_orders: number; created_at: string;
   };
-  const err = (m: string) => (document.getElementById("u-error")!.textContent = m);
+  type Role = { id: number; name: string; perms: Record<string, number>; members: number };
+  type Detail = {
+    user: Omit<User, "perm_overrides" | "staff_role_name" | "paid_orders"> & { perm_overrides: Record<string, number> };
+    orders: { id: number; status: string; amount: number | null; pack_name: string | null; created_at: string; delivery_note: string | null }[];
+    owned: { id: number; name: string }[];
+    downloads: number;
+  };
 
-  async function save(u: User, patch: Partial<{ is_admin: boolean; is_banned: boolean; role: string }>) {
-    const res = await fetch("/api/admin/users", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: u.id,
-        is_admin: patch.is_admin ?? u.is_admin === 1,
-        is_banned: patch.is_banned ?? u.is_banned === 1,
-        role: patch.role ?? u.role,
-      }),
+  const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T | null;
+  const err = (m: string) => ($("u-error")!.textContent = m);
+  const LEVEL = ["None", "View", "Edit"];
+  const money = (c: number | null) => (c ? `$${(c / 100).toFixed(2)}` : "$0");
+  const day = (s: string) => new Date(s.replace(" ", "T") + "Z").toLocaleDateString();
+
+  async function api(url: string, method = "GET", body?: unknown) {
+    const res = await fetch(url, {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error ?? "Failed");
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+    return data;
   }
 
-  async function load() {
-    const res = await fetch("/api/admin/users");
-    const data = await res.json();
-    const tbody = document.getElementById("u-rows")!;
+  let roles: Role[] = [];
+  let sections: Record<string, string> = {};
+  let filter = "all";
+  let openUserId: number | null = null;
+
+  // ─── tabs (owner only, the markup isn't there otherwise) ───
+  const tabs = [...document.querySelectorAll<HTMLButtonElement>(".settings-tab")];
+  function selectTab(t: HTMLButtonElement) {
+    for (const x of tabs) {
+      const on = x === t;
+      x.setAttribute("aria-selected", String(on));
+      x.tabIndex = on ? 0 : -1;
+      $(x.getAttribute("aria-controls")!)!.hidden = !on;
+    }
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener("click", () => selectTab(t));
+    t.addEventListener("keydown", (e) => {
+      const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+      if (!step) return;
+      const next = tabs[(i + step + tabs.length) % tabs.length];
+      selectTab(next);
+      next.focus();
+    });
+  });
+
+  // ─── users list ───
+  function accessLabel(u: User): [string, string] {
+    if (u.is_owner) return ["Owner", "access-owner"];
+    if (u.is_admin) return ["Full admin", "access-full"];
+    if (u.staff_role_name) return [u.staff_role_name, "access-role"];
+    if (u.perm_overrides && u.perm_overrides !== "{}") return ["Custom", "access-role"];
+    return ["—", ""];
+  }
+
+  async function loadUsers() {
+    const q = ($("u-search") as HTMLInputElement).value.trim();
+    const data = await api(`/api/admin/users?filter=${filter}&q=${encodeURIComponent(q)}`);
+    const tbody = $("u-rows")!;
     tbody.textContent = "";
-    for (const u of (data.users ?? []) as User[]) {
+    if (!data.users.length) {
       const tr = document.createElement("tr");
-      const add = (text: string) => {
-        const td = document.createElement("td");
-        td.textContent = text;
-        tr.appendChild(td);
-        return td;
-      };
-      add(u.name);
-      add(u.discord_id);
+      const td = document.createElement("td");
+      td.colSpan = 6;
+      td.className = "admin-empty";
+      td.textContent = q ? `Nobody matches "${q}".` : "Nobody here.";
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+      return;
+    }
+    for (const u of data.users as User[]) {
+      const tr = document.createElement("tr");
+      const td = () => tr.appendChild(document.createElement("td"));
 
-      const roleTd = document.createElement("td");
-      const roleSel = document.createElement("select");
-      roleSel.className = "form-input admin-role-select";
-      const roles = ["member", "customer", "developer", "staff", "owner"];
-      if (!roles.includes(u.role)) roles.unshift(u.role);
-      for (const r of roles) {
-        const opt = document.createElement("option");
-        opt.value = r;
-        opt.textContent = r;
-        opt.selected = r === u.role;
-        roleSel.appendChild(opt);
+      const cell = document.createElement("div");
+      cell.className = "admin-product-cell";
+      if (u.image) {
+        const img = document.createElement("img");
+        img.className = "users-avatar";
+        img.src = u.image;
+        img.alt = "";
+        cell.appendChild(img);
       }
-      roleSel.addEventListener("change", async () => {
-        try {
-          await save(u, { role: roleSel.value });
-          await load();
-        } catch (e) {
-          err((e as Error).message);
-        }
-      });
-      roleTd.appendChild(roleSel);
-      tr.appendChild(roleTd);
-      add(u.is_admin ? "✓" : "—");
-      add(u.is_banned ? "banned" : "—");
-
-      const actions = document.createElement("td");
-      const wrap = document.createElement("div");
-      wrap.className = "admin-row-actions";
-      const adminBtn = document.createElement("button");
-      adminBtn.className = "admin-edit-btn";
-      adminBtn.textContent = u.is_admin ? "Revoke admin" : "Make admin";
-      adminBtn.addEventListener("click", async () => {
-        try {
-          await save(u, { is_admin: u.is_admin !== 1 });
-          await load();
-        } catch (e) {
-          err((e as Error).message);
-        }
-      });
-      const banBtn = document.createElement("button");
-      banBtn.className = "admin-del-btn";
-      banBtn.textContent = u.is_banned ? "Unban" : "Ban";
-      banBtn.addEventListener("click", async () => {
-        if (!u.is_banned && !confirm(`Ban ${u.name}? Their sessions end immediately.`)) return;
-        try {
-          await save(u, { is_banned: u.is_banned !== 1 });
-          await load();
-        } catch (e) {
-          err((e as Error).message);
-        }
-      });
-      wrap.append(adminBtn, banBtn);
-      actions.appendChild(wrap);
-      tr.appendChild(actions);
+      const nm = document.createElement("span");
+      nm.textContent = u.name;
+      cell.appendChild(nm);
+      if (u.is_banned) {
+        const b = document.createElement("span");
+        b.className = "status-pill status-banned";
+        b.textContent = "banned";
+        cell.appendChild(b);
+      }
+      td().appendChild(cell);
+      td().textContent = u.discord_id;
+      const [label, cls] = accessLabel(u);
+      const pill = document.createElement("span");
+      pill.className = cls ? `status-pill ${cls}` : "";
+      pill.textContent = label;
+      td().appendChild(pill);
+      td().textContent = String(u.paid_orders);
+      td().textContent = day(u.created_at);
+      const open = document.createElement("button");
+      open.className = "admin-edit-btn admin-readonly-ok";
+      open.textContent = "Open";
+      open.setAttribute("aria-label", `Open ${u.name}`);
+      open.addEventListener("click", () => openUser(u.id));
+      td().appendChild(open);
       tbody.appendChild(tr);
     }
   }
-  load().catch((e) => err((e as Error).message));
+
+  let searchTimer: number | undefined;
+  $("u-search")!.addEventListener("input", () => {
+    // don't hammer the api on every keystroke
+    clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(() => loadUsers().catch((e) => err(e.message)), 200);
+  });
+  document.querySelectorAll<HTMLButtonElement>(".users-filter").forEach((b) => {
+    b.addEventListener("click", () => {
+      filter = b.dataset.filter!;
+      document.querySelectorAll(".users-filter").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      loadUsers().catch((e) => err(e.message));
+    });
+  });
+
+  // ─── user detail ───
+  const dialog = $("u-dialog") as HTMLDialogElement;
+  $("ud-close")!.addEventListener("click", () => dialog.close());
+  // click on the backdrop closes it, clicks inside the box land on children
+  dialog.addEventListener("click", (e) => {
+    if (e.target === dialog) dialog.close();
+  });
+
+  function li(text: string, sub?: string) {
+    const el = document.createElement("li");
+    el.textContent = text;
+    if (sub) {
+      const s = document.createElement("small");
+      s.textContent = sub;
+      el.appendChild(s);
+    }
+    return el;
+  }
+
+  async function openUser(id: number) {
+    err("");
+    const d: Detail = await api(`/api/admin/users/${id}`).catch((e) => {
+      err(e.message);
+      return null;
+    });
+    if (!d) return;
+    openUserId = id;
+    const u = d.user;
+    const avatar = $("ud-avatar") as HTMLImageElement;
+    avatar.hidden = !u.image;
+    if (u.image) avatar.src = u.image;
+    $("ud-name")!.textContent = u.name;
+    $("ud-meta")!.textContent = `Discord ${u.discord_id} · joined ${day(u.created_at)}`;
+
+    const paid = d.orders.filter((o) => o.status === "paid");
+    const spent = paid.reduce((s, o) => s + (o.amount ?? 0), 0);
+    $("ud-stats")!.replaceChildren(
+      ...[
+        [money(spent), "spent"],
+        [String(paid.length), "paid orders"],
+        [String(d.downloads), "downloads"],
+      ].map(([v, l]) => {
+        const div = document.createElement("div");
+        const strong = document.createElement("strong");
+        strong.textContent = v;
+        div.append(strong, l);
+        return div;
+      }),
+    );
+
+    $("ud-owned")!.replaceChildren(...(d.owned.length ? d.owned.map((p) => li(p.name)) : [li("Nothing yet")]));
+    $("ud-orders")!.replaceChildren(
+      ...(d.orders.length
+        ? d.orders.map((o) => li(`${o.pack_name ?? "deleted pack"} · ${o.status} · ${money(o.amount)}`, `${day(o.created_at)}${o.delivery_note ? ` · ${o.delivery_note}` : ""}`))
+        : [li("No orders")]),
+    );
+
+    const access = $("ud-access");
+    if (access) {
+      // owners are owners because of the env var/role label, editing them here does nothing useful
+      access.hidden = u.is_owner;
+      ($("ud-full") as HTMLInputElement).checked = u.is_admin === 1;
+      const sel = $("ud-role") as HTMLSelectElement;
+      sel.replaceChildren(new Option("No role", ""), ...roles.map((r) => new Option(r.name, String(r.id))));
+      sel.value = u.staff_role_id ? String(u.staff_role_id) : "";
+      document.querySelectorAll<HTMLSelectElement>("#ud-perm-grid select").forEach((s) => {
+        const v = u.perm_overrides[s.dataset.section!];
+        s.value = v === undefined ? "" : String(v);
+      });
+      $("ud-saved")!.textContent = "";
+    }
+
+    const ban = $("ud-ban") as HTMLButtonElement;
+    ban.hidden = u.is_owner;
+    ban.textContent = u.is_banned ? "Unban" : "Ban user";
+    ban.className = u.is_banned ? "btn btn-ghost btn-sm" : "btn btn-danger-ghost btn-sm";
+    ban.onclick = async () => {
+      if (!u.is_banned && !confirm(`Ban ${u.name}? Their sessions end immediately.`)) return;
+      try {
+        await api("/api/admin/users", "PUT", { id: u.id, is_banned: !u.is_banned });
+        await openUser(u.id);
+        await loadUsers();
+      } catch (e) {
+        err((e as Error).message);
+      }
+    };
+
+    if (!dialog.open) dialog.showModal();
+  }
+
+  $("ud-save")?.addEventListener("click", async () => {
+    if (!openUserId) return;
+    const overrides: Record<string, number> = {};
+    document.querySelectorAll<HTMLSelectElement>("#ud-perm-grid select").forEach((s) => {
+      if (s.value !== "") overrides[s.dataset.section!] = Number(s.value);
+    });
+    try {
+      await api("/api/admin/users", "PUT", {
+        id: openUserId,
+        is_admin: ($("ud-full") as HTMLInputElement).checked,
+        staff_role_id: ($("ud-role") as HTMLSelectElement).value || null,
+        perm_overrides: overrides,
+      });
+      $("ud-saved")!.textContent = "Saved ✓";
+      await loadUsers();
+    } catch (e) {
+      $("ud-saved")!.textContent = (e as Error).message;
+    }
+  });
+
+  // ─── roles ───
+  function renderRoles() {
+    const list = $("roles-list");
+    if (!list) return;
+    if (!roles.length) {
+      const p = document.createElement("p");
+      p.className = "admin-empty";
+      p.textContent = "No roles yet. Make one below, then give it to someone from the Users tab.";
+      list.replaceChildren(p);
+      return;
+    }
+    list.replaceChildren(
+      ...roles.map((r) => {
+        const card = document.createElement("form");
+        card.className = "admin-card role-card";
+        const head = document.createElement("div");
+        head.className = "role-card-head";
+        const name = document.createElement("input");
+        name.className = "form-input";
+        name.value = r.name;
+        name.maxLength = 40;
+        name.setAttribute("aria-label", "Role name");
+        const count = document.createElement("span");
+        count.className = "label-hint";
+        count.textContent = `${r.members} member${r.members === 1 ? "" : "s"}`;
+        head.append(name, count);
+
+        const grid = document.createElement("div");
+        grid.className = "perm-grid";
+        const selects: HTMLSelectElement[] = [];
+        for (const [key, label] of Object.entries(sections)) {
+          const id = `role-${r.id}-${key}`;
+          const l = document.createElement("label");
+          l.htmlFor = id;
+          l.textContent = label;
+          const s = document.createElement("select");
+          s.className = "form-input";
+          s.id = id;
+          s.dataset.section = key;
+          LEVEL.forEach((lv, i) => s.appendChild(new Option(lv, String(i))));
+          s.value = String(r.perms[key] ?? 0);
+          selects.push(s);
+          grid.append(l, s);
+        }
+
+        const actions = document.createElement("div");
+        actions.className = "admin-form-actions";
+        const save = document.createElement("button");
+        save.className = "btn btn-primary btn-sm";
+        save.type = "submit";
+        save.textContent = "Save role";
+        const status = document.createElement("span");
+        status.className = "ud-saved";
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "btn btn-danger-ghost btn-sm";
+        del.textContent = "Delete";
+        del.addEventListener("click", async () => {
+          const who = r.members ? ` ${r.members} member${r.members === 1 ? "" : "s"} lose this access.` : "";
+          if (!confirm(`Delete the ${r.name} role?${who}`)) return;
+          try {
+            await api(`/api/admin/staff-roles/${r.id}`, "DELETE");
+            await loadRoles();
+            await loadUsers();
+          } catch (e) {
+            err((e as Error).message);
+          }
+        });
+        actions.append(save, status, del);
+
+        card.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const perms: Record<string, number> = {};
+          selects.forEach((s) => (perms[s.dataset.section!] = Number(s.value)));
+          try {
+            await api(`/api/admin/staff-roles/${r.id}`, "PUT", { name: name.value, perms });
+            status.textContent = "Saved ✓";
+            setTimeout(() => (status.textContent = ""), 2500);
+            await loadUsers();
+          } catch (e2) {
+            status.textContent = (e2 as Error).message;
+          }
+        });
+        card.append(head, grid, actions);
+        return card;
+      }),
+    );
+  }
+
+  async function loadRoles() {
+    const data = await api("/api/admin/staff-roles");
+    roles = data.roles;
+    sections = data.sections;
+    renderRoles();
+  }
+
+  $("role-new")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const input = $("role-new-name") as HTMLInputElement;
+    try {
+      await api("/api/admin/staff-roles", "POST", { name: input.value, perms: {} });
+      input.value = "";
+      await loadRoles();
+    } catch (e2) {
+      err((e2 as Error).message);
+    }
+  });
+
+  Promise.all([loadRoles(), loadUsers()]).catch((e) => err(e.message));
 </script>

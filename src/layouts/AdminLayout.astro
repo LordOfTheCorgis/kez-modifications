@@ -54,7 +54,7 @@ const readOnly = !!current && !can(user, current[2], 2);
 </Layout>
 
 <script>
-  // settings + commissions are forms *are* the content, so read-only staff
+  // on settings + commissions the form IS the content, so read-only staff
   // see them greyed out instead of not at all. settings loads its values async,
   // disabling now is fine, disabled inputs still take .value
   document

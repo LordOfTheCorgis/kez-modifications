@@ -1782,3 +1782,234 @@ footer {
 .admin-readonly input[type="file"] {
   display: none !important;
 }
+
+/* ─── ADMIN: STAFF & USERS ─── */
+.users-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+.users-search {
+  flex: 1 1 240px;
+}
+.users-filters {
+  display: flex;
+  gap: 0.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 3px;
+}
+.users-filter {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.users-filter[aria-pressed="true"] {
+  background: var(--surface2);
+  color: var(--text);
+}
+.users-filter:focus-visible,
+.ud-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.users-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+}
+.status-banned { background: rgba(239, 68, 68, 0.14); color: #f87171; margin-left: 0.4rem; }
+.access-owner { background: rgba(245, 158, 11, 0.14); color: #f59e0b; }
+.access-full { background: rgba(59, 130, 246, 0.14); color: var(--accent); }
+.access-role { background: rgba(168, 85, 247, 0.14); color: #c084fc; }
+
+.btn-danger-ghost {
+  background: transparent;
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+.btn-danger-ghost:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.user-dialog {
+  width: min(620px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+  margin: auto;
+  padding: 0;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.user-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.65);
+}
+.ud-head {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1.25rem 1.25rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.ud-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+}
+.ud-head h2 {
+  font-size: 1.05rem;
+}
+.ud-head p {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.ud-close {
+  margin-left: auto;
+  align-self: flex-start;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 1.3rem;
+  cursor: pointer;
+}
+.ud-close:hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+.ud-body {
+  padding: 1rem 1.25rem 1.25rem;
+}
+.ud-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+.ud-stats div {
+  background: var(--surface2);
+  border-radius: var(--radius);
+  padding: 0.7rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.ud-stats strong {
+  display: block;
+  color: var(--text);
+  font-size: 1.05rem;
+}
+.ud-section {
+  margin-bottom: 1.25rem;
+}
+.ud-section h3 {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+.ud-check {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+.ud-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+.ud-overrides {
+  margin: 0.25rem 0 0.75rem;
+}
+.ud-overrides summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted2);
+  margin-bottom: 0.5rem;
+}
+.ud-saved {
+  font-size: 0.8rem;
+  color: #4ade80;
+  align-self: center;
+}
+.ud-list li {
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+.ud-list small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.ud-danger {
+  margin-bottom: 0;
+}
+
+.perm-grid {
+  display: grid;
+  grid-template-columns: 1fr minmax(110px, 140px);
+  gap: 0.4rem 0.75rem;
+  align-items: center;
+  font-size: 0.82rem;
+}
+.perm-grid .form-input {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.roles-intro {
+  color: var(--muted2);
+  font-size: 0.85rem;
+  max-width: 620px;
+  margin-bottom: 1rem;
+}
+.roles-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.role-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+.role-card-head .form-input {
+  font-weight: 700;
+}
+.role-card-head .label-hint {
+  white-space: nowrap;
+}
+.role-card .admin-form-actions .btn-danger-ghost {
+  margin-left: auto;
+}
+.roles-new label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.roles-new-row {
+  display: flex;
+  gap: 0.5rem;
+}
+.roles-new-row .form-input {
+  flex: 1;
+}
