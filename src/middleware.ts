@@ -2,6 +2,8 @@ import { defineMiddleware } from "astro:middleware";
 import { SESSION_COOKIE, resolveSession, destroySessionsForUser } from "./lib/session";
 import { getSiteUrl } from "./lib/settings";
 import { effectivePerms, isOwnerUser } from "./lib/perms";
+import { CART_COOKIE, readCart } from "./lib/cart";
+import { db } from "./lib/db";
 
 const STATE_CHANGING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -50,6 +52,22 @@ export const onRequest = defineMiddleware(async (context, next) => {
         );
         return new Response("Cross-origin request rejected", { status: 403 });
       }
+    }
+  }
+
+  // a deleted pack's id stays in the cart cookie forever otherwise, and the nav
+  // badge counts the raw cookie, so people saw "1" on an empty cart
+  const cartIds = readCart(cookies);
+  if (cartIds.length) {
+    const alive = cartIds.filter((id) => db.prepare("SELECT 1 FROM packs WHERE id = ?").get(id));
+    if (alive.length !== cartIds.length) {
+      // same attrs cart-client.ts writes with, not httpOnly because the browser edits it
+      cookies.set(CART_COOKIE, alive.join(","), {
+        path: "/",
+        maxAge: alive.length ? 60 * 60 * 24 * 30 : 0,
+        sameSite: "lax",
+        secure: url.protocol === "https:",
+      });
     }
   }
 
