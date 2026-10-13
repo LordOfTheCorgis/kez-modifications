@@ -82,6 +82,12 @@ export async function fulfillCheckoutSession(
     if (pack?.discord_role_id && discordId) {
       const res = await assignRole(discordId, pack.discord_role_id);
       note = res.ok ? "role assigned" : `role assignment failed: ${res.note}`;
+      if (!res.ok) {
+        // they paid and didn't get the role. this is THE launch-day failure
+        await logToDiscord(
+          `:rotating_light: Paid but role NOT delivered: **${user?.name ?? "unknown"}** (${discordId}) bought **${pack.name}**, order #${order.id}. ${res.note}. Fix the cause, then Admin → Orders → Retry role.`,
+        );
+      }
     }
     db.prepare("UPDATE orders SET delivery_note = ? WHERE id = ?").run(note, order.id);
     lines.push(`**${pack?.name ?? `pack #${order.pack_id}`}** (${note})`);
@@ -127,7 +133,12 @@ export async function releasePreorders(packId: number): Promise<{ delivered: num
     if (pack.discord_role_id) {
       const res = await assignRole(order.discord_id, pack.discord_role_id);
       note = res.ok ? "role assigned on release" : `role assignment failed on release: ${res.note}`;
-      if (!res.ok) failed++;
+      if (!res.ok) {
+        failed++;
+        await logToDiscord(
+          `:rotating_light: Pre-order release, role NOT delivered: discord ${order.discord_id}, **${pack.name}**, order #${order.id}. ${res.note}. Admin → Orders → Retry role.`,
+        );
+      }
     }
     db.prepare("UPDATE orders SET delivery_note = ? WHERE id = ?").run(note, order.id);
     db.prepare("UPDATE users SET role = 'customer' WHERE id = ? AND role = 'member'").run(order.user_id);

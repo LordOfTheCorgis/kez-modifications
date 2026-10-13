@@ -4,6 +4,7 @@ import { getSiteUrl } from "./lib/settings";
 import { effectivePerms, isOwnerUser } from "./lib/perms";
 import { CART_COOKIE, readCart } from "./lib/cart";
 import { db } from "./lib/db";
+import { errText, logToDiscord } from "./lib/notify";
 
 const STATE_CHANGING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -93,5 +94,17 @@ export const onRequest = defineMiddleware(async (context, next) => {
       };
     }
   }
-  return next();
+  try {
+    return await next();
+  } catch (err) {
+    // anything that throws past a route lands here. without this a crash is a
+    // bare 500 and a line in stdout nobody's tailing
+    console.error(`[500] ${request.method} ${url.pathname}`, err);
+    await logToDiscord(
+      `:rotating_light: 500 on ${request.method} ${url.pathname}` +
+        (context.locals.user ? ` (user ${context.locals.user.name})` : "") +
+        `: ${errText(err)}`,
+    );
+    return new Response("Something broke on our end. Try again in a minute.", { status: 500 });
+  }
 });

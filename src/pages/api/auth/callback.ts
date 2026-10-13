@@ -5,6 +5,7 @@ import { exchangeCode, fetchDiscordUser } from "../../../lib/discord";
 import { getSiteUrl } from "../../../lib/settings";
 import { createSession, SESSION_COOKIE } from "../../../lib/session";
 import { rateLimit } from "../../../lib/ratelimit";
+import { logToDiscord } from "../../../lib/notify";
 
 export const GET: APIRoute = async ({ cookies, url, clientAddress }) => {
   let ip = "unknown";
@@ -27,10 +28,17 @@ export const GET: APIRoute = async ({ cookies, url, clientAddress }) => {
   if (!state || !code || !expected || state !== expected) return fail("state");
 
   const accessToken = await exchangeCode(code, `${getSiteUrl()}/api/auth/callback`);
-  if (!accessToken) return fail("exchange");
+  // state mismatches are just stale tabs, these two mean login is broken for everyone
+  if (!accessToken) {
+    await logToDiscord(":rotating_light: Discord login failing: code exchange rejected. Check DISCORD_CLIENT_ID/SECRET and the redirect URI on the server.");
+    return fail("exchange");
+  }
 
   const discordUser = await fetchDiscordUser(accessToken);
-  if (!discordUser) return fail("profile");
+  if (!discordUser) {
+    await logToDiscord(":warning: Discord login: got a token but couldn't fetch the user profile.");
+    return fail("profile");
+  }
 
   const name = discordUser.global_name || discordUser.username;
   const image = discordUser.avatar

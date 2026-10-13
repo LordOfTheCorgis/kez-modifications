@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { getStripe } from "../../../lib/stripe";
 import { getSiteUrl } from "../../../lib/settings";
 import { fulfillCheckoutSession } from "../../../lib/fulfillment";
+import { errText, logToDiscord } from "../../../lib/notify";
 
 /**
  * success_url target. Independent of the webhook: whichever path runs first
@@ -24,7 +25,7 @@ export const GET: APIRoute = async ({ url }) => {
     await fulfillCheckoutSession(session); // idempotent — already-paid orders just pass through
     return redirect("/account?purchase=success");
   } catch (err) {
-    console.error("[stripe callback] failed", err);
+    await logToDiscord(`:warning: Checkout return page failed for session ${sessionId}: ${errText(err)}. Webhook should still deliver; if not, check Stripe.`);
     return redirect("/shop?payment=error");
   }
 };

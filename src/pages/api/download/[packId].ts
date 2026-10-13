@@ -5,6 +5,7 @@ import { Readable } from "node:stream";
 import { db, PRIVATE_FILES_DIR } from "../../../lib/db";
 import type { PackRow } from "../../../lib/db";
 import { isDownloadable, ownsPack } from "../../../lib/ownership";
+import { logToDiscord } from "../../../lib/notify";
 
 export const GET: APIRoute = async ({ params, locals }) => {
   const user = locals.user;
@@ -26,7 +27,10 @@ export const GET: APIRoute = async ({ params, locals }) => {
   // file_url is a server-only filename inside the private dir; basename()
   // blocks traversal even if the stored value is ever tampered with.
   const filePath = path.join(PRIVATE_FILES_DIR, path.basename(pack.file_url));
-  if (!fs.existsSync(filePath)) return new Response("File missing", { status: 404 });
+  if (!fs.existsSync(filePath)) {
+    await logToDiscord(`:rotating_light: **${pack.name}** download is broken, the file is missing on disk. Re-upload it in Admin → Products.`);
+    return new Response("File missing", { status: 404 });
+  }
 
   db.prepare("INSERT INTO download_logs (user_id, pack_id) VALUES (?, ?)").run(user.id, pack.id);
 
