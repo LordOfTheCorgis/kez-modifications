@@ -2018,3 +2018,6 @@ footer {
 .roles-new-row .form-input {
   flex: 1;
 }
+.delivery-failed {
+  color: #f87171;
+}

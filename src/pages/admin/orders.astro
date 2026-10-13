@@ -69,7 +69,27 @@ if (!can(Astro.locals.user, "orders")) return Astro.redirect("/admin");
       pill.className = `status-pill ${o.status === "paid" ? "status-approved" : "status-pending"}`;
       pill.textContent = o.status;
       st.appendChild(pill);
-      add(o.delivery_note ?? "—");
+      const noteTd = add(o.delivery_note ?? "—");
+      if (o.status === "paid" && o.delivery_note?.includes("failed")) {
+        noteTd.classList.add("delivery-failed");
+        const retry = document.createElement("button");
+        retry.className = "admin-edit-btn";
+        retry.textContent = "Retry role";
+        retry.addEventListener("click", async () => {
+          retry.disabled = true;
+          retry.textContent = "Retrying…";
+          const r = await fetch(`/api/admin/orders/${o.id}/retry-role`, { method: "POST" });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) {
+            retry.disabled = false;
+            retry.title = `Still failing: ${d.error ?? r.status}`;
+            retry.textContent = "Still failing, retry";
+            return;
+          }
+          load();
+        });
+        noteTd.append(" ", retry);
+      }
       add(new Date(o.created_at + "Z").toLocaleString());
       orders.appendChild(tr);
     }

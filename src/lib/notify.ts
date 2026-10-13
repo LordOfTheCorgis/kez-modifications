@@ -43,5 +43,6 @@ export async function logToDiscord(message: string, channel: NotifyChannel = "lo
 
 /** Error -> one readable line for a Discord message. */
 export function errText(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+  // stripe's errors come with a paragraph of docs links attached, first line is the useful part
+  return (err instanceof Error ? err.message : String(err)).split("\n")[0].slice(0, 300);
 }
