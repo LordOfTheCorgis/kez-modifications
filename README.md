@@ -32,7 +32,9 @@ sit **above** every role it grants.
 - Stripe mode toggle (test/live) with separate secret + webhook secret per mode.
 - Tabs: Stripe, Discord, Webhooks, Homepage (slideshow images), General.
 - Discord bot token + guild id (rotatable without redeploy).
-- Notification webhooks: `webhook_sales`, `webhook_log`, `webhook_discounts`.
+- Notification webhooks: `webhook_sales`, `webhook_log`, `webhook_discounts`,
+  `webhook_support` (new site tickets + customer replies). Every post is an embed;
+  the leading emoji of the message picks its color and title (`src/lib/notify.ts`).
 
 Stripe webhook endpoint: `POST {PUBLIC_SITE_URL}/api/stripe/webhook` with event
 `checkout.session.completed`. Fulfillment is dual-path (browser callback +
@@ -49,6 +51,14 @@ handing out a generic "Customer" role for commissions used to unlock the whole
 catalog. People who bought before the store existed get a pack via
 `/admin` → Orders → Grant pack.
 
+**Revoke** on an Orders row flips it to `revoked` (kept for history, so ownership
+and downloads stop instantly), appends who/why to the delivery note, and posts
+to the log feed. The pack's Discord role only comes off if no other pack the
+user still owns maps to the same role. Revoked buyers can buy or be granted it again.
+
+Checkout requires ticking the Terms of Service box; the server enforces it and
+stamps `orders.tos_accepted_at` (useful evidence in a Stripe dispute).
+
 ## Product status
 
 Each pack is **Live**, **Hidden** (off the shop, 404 for the public, owners
@@ -57,6 +67,28 @@ or download until an admin hits **Release** on the Products table), or
 **Coming Soon** (visible, not buyable). Saving a pre-order pack as Live also
 releases it. Release is idempotent per order row, same as checkout.
 
+## Update history
+
+Admin → Products → **Versions** per pack: version, date, markdown notes. The
+product page shows the latest version under the price and a timeline below,
+with anything past the newest three folded under "Older versions".
+
+## Support tickets
+
+`/support` offers Discord or an on-site ticket (category, urgency, optional
+linked order). Customers still sign in with Discord but don't need to be in the
+server. Threads at `/support/:id` are shared by customer and staff and poll
+every 10s while the tab is visible. Replying reopens a closed ticket. Staff
+work from Admin → Support (sorted by urgency, "Needs a reply" by default);
+customers see their tickets on `/account`. Limits: 5 open tickets per person,
+5 new tickets an hour. Staff replies don't notify the customer anywhere yet.
+
+## Analytics
+
+Admin → Analytics, range 7d/30d/90d/12mo/all. Revenue counts `paid` +
+`preorder` rows; revoked rows are listed separately. Days bucket in the
+server's local time.
+
 ## Staff access
 
 `is_admin` = full access to every section. Everyone else gets a staff role
@@ -64,6 +96,8 @@ releases it. Release is idempotent per order row, same as checkout.
 under Staff & Users. Managing staff is owner-only: anyone in
 `ADMIN_DISCORD_IDS` or with the `owner` role label. Every `/api/admin/*` route
 checks its own section; the UI hiding buttons for view-only staff is cosmetic.
+Analytics and Support are their own sections, so existing staff roles start
+with no access to either until the owner grants it.
 
 ## Verify end-to-end (needs test credentials)
 
