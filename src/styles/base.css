@@ -1854,6 +1854,38 @@ footer {
   border: 1px solid var(--border);
   border-radius: 12px;
 }
+.version-admin-list {
+  list-style: none;
+  margin-top: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.version-admin-list li {
+  background: var(--surface2);
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.8rem;
+}
+.version-admin-list li > div {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.version-admin-list li > div span {
+  color: var(--muted);
+}
+.version-admin-list li > div button {
+  margin-left: auto;
+}
+.version-admin-list pre {
+  white-space: pre-wrap;
+  font-family: inherit;
+  color: var(--muted2);
+  margin-top: 0.35rem;
+}
 .user-dialog::backdrop {
   background: rgba(0, 0, 0, 0.65);
 }

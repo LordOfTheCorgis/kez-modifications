@@ -101,6 +101,39 @@ const categories = db
       <tbody id="pack-rows"><tr><td colspan="8" class="admin-empty">Loading…</td></tr></tbody>
     </table>
   </div>
+
+  <dialog id="v-dialog" class="user-dialog" aria-labelledby="v-title">
+    <div class="ud-head">
+      <div>
+        <h2 id="v-title">Update history</h2>
+        <p>Shows on the product page, newest first.</p>
+      </div>
+      <button type="button" class="ud-close" id="v-close" aria-label="Close">×</button>
+    </div>
+    <div class="ud-body">
+      <form class="admin-form" id="v-form">
+        <div class="admin-form-2col">
+          <div class="form-row">
+            <label for="v-version">Version</label>
+            <input class="form-input" id="v-version" required maxlength="40" placeholder="1.4" />
+          </div>
+          <div class="form-row">
+            <label for="v-date">Released</label>
+            <input class="form-input" id="v-date" type="date" />
+          </div>
+        </div>
+        <div class="form-row">
+          <label for="v-notes">What changed <span class="label-hint">markdown works</span></label>
+          <textarea class="form-input" id="v-notes" rows="4" placeholder="- Fixed clipping on the vest&#10;- Added a winter variant"></textarea>
+        </div>
+        <div class="error-note" id="v-error"></div>
+        <div class="admin-form-actions">
+          <button class="btn btn-primary" type="submit">Add version</button>
+        </div>
+      </form>
+      <ul class="version-admin-list" id="v-list"></ul>
+    </div>
+  </dialog>
 </AdminLayout>
 
 <script>
@@ -328,7 +361,11 @@ const categories = db
         });
         wrap.append(relBtn);
       }
-      wrap.append(editBtn, delBtn);
+      const verBtn = document.createElement("button");
+      verBtn.className = "admin-edit-btn";
+      verBtn.textContent = "Versions";
+      verBtn.addEventListener("click", () => openVersions(p));
+      wrap.append(verBtn, editBtn, delBtn);
       actions.appendChild(wrap);
       tr.appendChild(actions);
 
@@ -387,6 +424,83 @@ const categories = db
       /* bot not configured yet — picker stays empty */
     }
   }
+
+  // ─── update history ───
+  type Version = { id: number; version: string; notes: string; released_on: string };
+  const vDialog = document.getElementById("v-dialog") as HTMLDialogElement;
+  const vErr = (msg: string) => (document.getElementById("v-error")!.textContent = msg);
+  let vPackId = 0;
+  document.getElementById("v-close")!.addEventListener("click", () => vDialog.close());
+  vDialog.addEventListener("click", (e) => {
+    if (e.target === vDialog) vDialog.close();
+  });
+
+  function renderVersions(list: Version[]) {
+    const ul = document.getElementById("v-list")!;
+    ul.replaceChildren();
+    if (!list.length) {
+      const li = document.createElement("li");
+      li.className = "admin-empty";
+      li.textContent = "No versions yet.";
+      ul.appendChild(li);
+    }
+    for (const v of list) {
+      const li = document.createElement("li");
+      const head = document.createElement("div");
+      const strong = document.createElement("strong");
+      strong.textContent = `v${v.version.replace(/^v/i, "")}`;
+      const date = document.createElement("span");
+      date.textContent = v.released_on;
+      const del = document.createElement("button");
+      del.className = "admin-del-btn";
+      del.textContent = "Delete";
+      del.addEventListener("click", async () => {
+        if (!confirm(`Delete v${v.version} from the history?`)) return;
+        try {
+          renderVersions((await api(`/api/admin/packs/${vPackId}/versions?vid=${v.id}`, "DELETE")).versions);
+        } catch (e2) {
+          vErr((e2 as Error).message);
+        }
+      });
+      head.append(strong, date, del);
+      const notes = document.createElement("pre");
+      notes.textContent = v.notes;
+      li.append(head);
+      if (v.notes) li.append(notes);
+      ul.appendChild(li);
+    }
+  }
+
+  async function openVersions(p: Pack) {
+    vPackId = p.id;
+    vErr("");
+    (document.getElementById("v-form") as HTMLFormElement).reset();
+    $("v-date").value = new Date().toLocaleDateString("en-CA");
+    document.getElementById("v-title")!.textContent = `${p.name}: update history`;
+    try {
+      renderVersions((await api(`/api/admin/packs/${p.id}/versions`)).versions);
+      vDialog.showModal();
+    } catch (e2) {
+      err((e2 as Error).message);
+    }
+  }
+
+  document.getElementById("v-form")!.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    vErr("");
+    try {
+      const data = await api(`/api/admin/packs/${vPackId}/versions`, "POST", {
+        version: $("v-version").value,
+        released_on: $("v-date").value,
+        notes: ($("v-notes") as unknown as HTMLTextAreaElement).value,
+      });
+      renderVersions(data.versions);
+      (document.getElementById("v-form") as HTMLFormElement).reset();
+      $("v-date").value = new Date().toLocaleDateString("en-CA");
+    } catch (e2) {
+      vErr((e2 as Error).message);
+    }
+  });
 
   load().catch((e2) => err((e2 as Error).message));
   loadRoles();
