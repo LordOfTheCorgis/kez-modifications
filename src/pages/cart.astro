@@ -36,7 +36,7 @@ const canceled = Astro.url.searchParams.get("canceled") === "1";
           Nothing in here yet — <a href="/shop" style="color:var(--accent);">browse the shop</a>.
         </p>
       ) : (
-        <>
+        <div class="cart-layout">
           <div id="cart-list">
             {items.map(({ pack, owned, unavailable }) => (
               <div class={`cart-row ${owned || unavailable ? "is-owned" : ""}`} data-pack-id={pack.id}>
@@ -57,23 +57,50 @@ const canceled = Astro.url.searchParams.get("canceled") === "1";
             ))}
           </div>
 
-          <div class="cart-summary">
-            {buyable.length > 0 && subtotal > 0 && (
-              <input class="form-input" id="discount-input" placeholder="Discount code (optional)" autocomplete="off" />
-            )}
-            <div class="cart-total">
+          <aside class="cart-summary" aria-labelledby="summary-heading">
+            <h2 id="summary-heading">Summary</h2>
+            <div class="cart-line">
               <span>
-                {buyable.length} item{buyable.length === 1 ? "" : "s"}
+                Subtotal ({buyable.length} item{buyable.length === 1 ? "" : "s"})
               </span>
-              <strong id="cart-subtotal">{fmt(subtotal)}</strong>
+              <span>{fmt(subtotal)}</span>
             </div>
+            <div class="cart-line cart-line-discount" id="cart-discount-line" hidden>
+              <span id="cart-discount-label">Discount</span>
+              <span id="cart-discount-amount" />
+            </div>
+            <div class="cart-total">
+              <span>Total</span>
+              <strong id="cart-total" data-subtotal={subtotal}>{fmt(subtotal)}</strong>
+            </div>
+            {buyable.length > 0 && subtotal > 0 && (
+              <form class="cart-discount" id="discount-form">
+                <label class="sr-only" for="discount-input">Discount code</label>
+                <input class="form-input" id="discount-input" placeholder="Discount code" autocomplete="off" />
+                <button class="btn btn-ghost" type="submit" id="discount-apply">Apply</button>
+              </form>
+            )}
+            <div class="cart-discount-msg" id="discount-msg" role="status" />
+            {buyable.length > 0 && user && (
+              <label class="cart-tos">
+                <input type="checkbox" id="tos-check" />
+                <span>
+                  I agree to the <a href="/terms" target="_blank" rel="noopener">Terms of Service</a>
+                </span>
+              </label>
+            )}
             <div class="error-note" id="cart-error" />
             {
               buyable.length === 0 ? (
                 <p class="admin-empty" style="padding:0;">Nothing here can be checked out right now.</p>
               ) : user ? (
-                <button class="btn btn-primary btn-purchase" id="checkout-btn" data-ids={buyable.map((i) => i.pack.id).join(",")}>
-                  {subtotal === 0 ? "Claim for free" : `Checkout — ${fmt(subtotal)}`}
+                <button
+                  class="btn btn-primary btn-purchase"
+                  id="checkout-btn"
+                  disabled
+                  data-ids={buyable.map((i) => i.pack.id).join(",")}
+                >
+                  {subtotal === 0 ? "Claim for free" : "Checkout"}
                 </button>
               ) : (
                 <a class="btn btn-primary btn-purchase" href="/api/auth/login?next=/cart">
@@ -81,8 +108,8 @@ const canceled = Astro.url.searchParams.get("canceled") === "1";
                 </a>
               )
             }
-          </div>
-        </>
+          </aside>
+        </div>
       )
     }
   </div>
@@ -100,21 +127,79 @@ const canceled = Astro.url.searchParams.get("canceled") === "1";
     });
   });
 
+  const fmt = (cents: number) => (cents === 0 ? "Free" : `$${(cents / 100).toFixed(2)}`);
   const checkoutBtn = document.getElementById("checkout-btn") as HTMLButtonElement | null;
+  const tos = document.getElementById("tos-check") as HTMLInputElement | null;
+  const codeInput = document.getElementById("discount-input") as HTMLInputElement | null;
+  const msg = document.getElementById("discount-msg")!;
+  const packIds = (checkoutBtn?.dataset.ids ?? "").split(",").filter(Boolean).map(Number);
+  let applied = "";
+
+  tos?.addEventListener("change", () => {
+    if (checkoutBtn) checkoutBtn.disabled = !tos.checked;
+  });
+
+  document.getElementById("discount-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("discount-apply") as HTMLButtonElement;
+    const totalEl = document.getElementById("cart-total")!;
+    const line = document.getElementById("cart-discount-line")!;
+    const code = codeInput!.value.trim();
+    msg.className = "cart-discount-msg";
+    // empty submit = take the code off
+    if (!code) {
+      applied = "";
+      line.hidden = true;
+      totalEl.textContent = fmt(Number(totalEl.dataset.subtotal));
+      msg.textContent = "";
+      return;
+    }
+    btn.disabled = true;
+    try {
+      const res = await fetch("/api/discount", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, packIds }),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data) {
+        applied = data.code;
+        document.getElementById("cart-discount-label")!.textContent = `Discount (${data.code}, ${data.percent}% off)`;
+        document.getElementById("cart-discount-amount")!.textContent = `−${fmt(data.savings)}`;
+        line.hidden = false;
+        totalEl.textContent = fmt(data.total);
+        msg.textContent = "Code applied.";
+        msg.classList.add("is-ok");
+      } else {
+        applied = "";
+        line.hidden = true;
+        totalEl.textContent = fmt(Number(totalEl.dataset.subtotal));
+        msg.textContent = data?.error ?? "Couldn't check that code";
+        msg.classList.add("is-bad");
+      }
+    } catch {
+      msg.textContent = "Network error — try again";
+      msg.classList.add("is-bad");
+    }
+    btn.disabled = false;
+  });
+
   checkoutBtn?.addEventListener("click", async () => {
     const errBox = document.getElementById("cart-error")!;
     errBox.textContent = "";
+    // typed a code but never hit apply: still send it, purchase.ts validates it either way
+    const typed = codeInput?.value.trim() ?? "";
     checkoutBtn.disabled = true;
     const label = checkoutBtn.textContent;
     checkoutBtn.textContent = "Working…";
     try {
-      const codeInput = document.getElementById("discount-input") as HTMLInputElement | null;
       const res = await fetch("/api/purchase", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          packIds: (checkoutBtn.dataset.ids ?? "").split(",").map(Number),
-          discountCode: codeInput?.value.trim() || undefined,
+          packIds,
+          discountCode: typed || applied || undefined,
+          tosAccepted: tos?.checked === true,
         }),
       });
       const data = await res.json().catch(() => null);
@@ -132,7 +217,7 @@ const canceled = Astro.url.searchParams.get("canceled") === "1";
     } catch {
       errBox.textContent = "Network error — try again";
     }
-    checkoutBtn.disabled = false;
+    checkoutBtn.disabled = !tos?.checked;
     checkoutBtn.textContent = label;
   });
 </script>
