@@ -7,6 +7,36 @@ export type NotifyChannel = "sales" | "log" | "discounts";
 const DEDUPE_MS = 60_000;
 const lastSent = new Map<string, number>();
 
+// every caller already leads with an emoji that says what kind of message it
+// is, so that picks the color + title instead of threading a "kind" arg through 15 call sites
+const KINDS: Record<string, { color: number; title: string }> = {
+  ":rotating_light:": { color: 0xe5484d, title: "Needs attention" },
+  ":warning:": { color: 0xf5a524, title: "Warning" },
+  ":moneybag:": { color: 0x30a46c, title: "New sale" },
+  ":gift:": { color: 0x30a46c, title: "Pack granted" },
+  ":white_check_mark:": { color: 0x30a46c, title: "Fixed" },
+  ":label:": { color: 0xd6a84e, title: "Discount" },
+  ":no_entry:": { color: 0x8b8d98, title: "Access revoked" },
+  ":ticket:": { color: 0x3e8ef7, title: "Support ticket" },
+};
+const FALLBACK: Record<NotifyChannel, { color: number; title: string }> = {
+  sales: { color: 0x30a46c, title: "Sales" },
+  log: { color: 0x3e8ef7, title: "Store log" },
+  discounts: { color: 0xd6a84e, title: "Discount" },
+};
+
+export function toEmbed(message: string, channel: NotifyChannel) {
+  const emoji = message.match(/^:[a-z_]+:/)?.[0] ?? "";
+  const kind = KINDS[emoji] ?? FALLBACK[channel];
+  return {
+    title: kind.title,
+    description: message.slice(emoji.length).trim().slice(0, 4000),
+    color: kind.color,
+    footer: { text: "Kez Modifications" },
+    timestamp: new Date().toISOString(),
+  };
+}
+
 /**
  * Posts to the Discord webhook configured for the given channel
  * (settings keys webhook_sales / webhook_log / webhook_discounts).
@@ -25,7 +55,7 @@ export async function logToDiscord(message: string, channel: NotifyChannel = "lo
   }
   const url = getSetting(`webhook_${channel}`);
   if (!url) return;
-  const body = JSON.stringify({ content: message.slice(0, 1900) });
+  const body = JSON.stringify({ embeds: [toEmbed(message, channel)] });
   try {
     let res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body });
     // discord webhooks cap around 30/min. a launch rush can hit that on the
