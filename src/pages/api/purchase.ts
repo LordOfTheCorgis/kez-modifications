@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { db } from "../../lib/db";
 import type { DiscountRow, PackRow } from "../../lib/db";
+import { applyDiscount, validateDiscount } from "../../lib/discounts";
 import { assignRole } from "../../lib/discord";
 import { getStripe, getStripeConfigError, stripeErrorMessage } from "../../lib/stripe";
 import { getSiteUrl } from "../../lib/settings";
@@ -13,21 +14,6 @@ const MAX_CART_ITEMS = 20;
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
-
-function validateDiscount(code: string): DiscountRow | null {
-  const d = db.prepare("SELECT * FROM discounts WHERE code = ?").get(code) as DiscountRow | undefined;
-  if (!d || !d.is_active) return null;
-  const now = new Date().toISOString();
-  if (d.starts_at && d.starts_at > now) return null;
-  if (d.expires_at && d.expires_at < now) return null;
-  if (d.max_uses !== null && d.uses >= d.max_uses) return null;
-  return d;
-}
-
-function applyDiscount(price: number, discount: DiscountRow | null): number {
-  if (!discount) return price;
-  return Math.max(0, Math.round((price * (100 - discount.percent)) / 100));
-}
 
 /**
  * Takes { packIds: [] } from the cart ({ packId } still works, nothing sends it anymore). Always
@@ -50,7 +36,10 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
     packId?: unknown;
     packIds?: unknown;
     discountCode?: unknown;
+    tosAccepted?: unknown;
   } | null;
+  // stored on every order row: it's the thing Stripe asks for when someone disputes a charge
+  if (body?.tosAccepted !== true) return json({ error: "Accept the Terms of Service to check out" }, 400);
 
   const rawIds = Array.isArray(body?.packIds) ? body.packIds : [body?.packId];
   const packIds = [...new Set(rawIds.map(Number).filter((n) => Number.isInteger(n) && n > 0))];
@@ -127,8 +116,8 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
     for (const pack of freePacks) {
       if (pack.status === "preorder") {
         db.prepare(
-          `INSERT INTO orders (user_id, pack_id, status, amount, discount_code, delivery_note)
-           VALUES (?, ?, 'preorder', 0, ?, 'pre-order, delivers on release')`,
+          `INSERT INTO orders (user_id, pack_id, status, amount, discount_code, delivery_note, tos_accepted_at)
+           VALUES (?, ?, 'preorder', 0, ?, 'pre-order, delivers on release', datetime('now'))`,
         ).run(user.id, pack.id, discount?.code ?? null);
         claimed.push(`**${pack.name}** (pre-order)`);
         continue;
@@ -139,8 +128,8 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
         note = res.ok ? "role assigned" : `role assignment failed: ${res.note}`;
       }
       db.prepare(
-        `INSERT INTO orders (user_id, pack_id, status, amount, discount_code, delivery_note)
-         VALUES (?, ?, 'paid', 0, ?, ?)`,
+        `INSERT INTO orders (user_id, pack_id, status, amount, discount_code, delivery_note, tos_accepted_at)
+         VALUES (?, ?, 'paid', 0, ?, ?, datetime('now'))`,
       ).run(user.id, pack.id, discount?.code ?? null, note);
       claimed.push(`**${pack.name}** (${note})`);
     }
@@ -201,7 +190,7 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
   }
 
   const ins = db.prepare(
-    "INSERT INTO orders (user_id, pack_id, stripe_session_id, status, amount, discount_code) VALUES (?, ?, ?, 'pending', ?, ?)",
+    "INSERT INTO orders (user_id, pack_id, stripe_session_id, status, amount, discount_code, tos_accepted_at) VALUES (?, ?, ?, 'pending', ?, ?, datetime('now'))",
   );
   db.transaction(() => {
     for (const pack of paidPacks) {

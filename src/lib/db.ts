@@ -126,6 +126,8 @@ addColumn("users", "staff_role_id", "INTEGER REFERENCES staff_roles(id) ON DELET
 addColumn("users", "perm_overrides", "TEXT NOT NULL DEFAULT '{}'");
 // set when a pre-order gets delivered, drives the "it's out" banner on /account
 addColumn("orders", "released_at", "TEXT");
+// null on admin grants and anything bought before the checkbox existed
+addColumn("orders", "tos_accepted_at", "TEXT");
 
 // Live databases created before the 'member' default landed have role='customer'
 // on every row and a legacy column default. Reclassify non-buyers once; purchase
@@ -203,6 +205,7 @@ export interface OrderRow {
   discount_code: string | null;
   delivery_note: string | null;
   released_at: string | null;
+  tos_accepted_at: string | null;
   created_at: string;
   updated_at: string;
 }
