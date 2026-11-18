@@ -16,6 +16,7 @@ const KINDS: Record<string, { color: number; title: string }> = {
   ":gift:": { color: 0x30a46c, title: "Pack granted" },
   ":white_check_mark:": { color: 0x30a46c, title: "Fixed" },
   ":label:": { color: 0xd6a84e, title: "Discount" },
+  ":rocket:": { color: 0x8e4ec6, title: "Pack released" },
   ":no_entry:": { color: 0x8b8d98, title: "Access revoked" },
   ":ticket:": { color: 0x3e8ef7, title: "Support ticket" },
 };

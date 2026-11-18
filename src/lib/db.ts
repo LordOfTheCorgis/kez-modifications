@@ -200,7 +200,8 @@ export interface OrderRow {
   pack_id: number;
   stripe_session_id: string | null;
   // preorder = paid, waiting on the pack's release. not ownership yet
-  status: "pending" | "paid" | "preorder";
+  // revoked = an admin took it back, row kept for the paper trail
+  status: "pending" | "paid" | "preorder" | "revoked";
   amount: number | null;
   discount_code: string | null;
   delivery_note: string | null;

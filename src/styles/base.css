@@ -1828,6 +1828,8 @@ footer {
   height: 26px;
   border-radius: 50%;
 }
+.status-revoked { background: rgba(239, 68, 68, 0.14); color: #f87171; }
+.admin-revoke-btn:hover { color: #f87171; }
 .status-banned { background: rgba(239, 68, 68, 0.14); color: #f87171; margin-left: 0.4rem; }
 .access-owner { background: rgba(245, 158, 11, 0.14); color: #f59e0b; }
 .access-full { background: rgba(59, 130, 246, 0.14); color: var(--accent); }

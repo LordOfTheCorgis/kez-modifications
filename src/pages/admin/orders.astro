@@ -66,9 +66,36 @@ if (!can(Astro.locals.user, "orders")) return Astro.redirect("/admin");
       add(o.amount === null ? "—" : o.amount === 0 ? "Free" : `$${(o.amount / 100).toFixed(2)}`);
       const st = add("");
       const pill = document.createElement("span");
-      pill.className = `status-pill ${o.status === "paid" ? "status-approved" : "status-pending"}`;
+      pill.className = `status-pill ${o.status === "paid" ? "status-approved" : o.status === "revoked" ? "status-revoked" : "status-pending"}`;
       pill.textContent = o.status;
       st.appendChild(pill);
+      if (o.status === "paid" || o.status === "preorder") {
+        const revoke = document.createElement("button");
+        revoke.className = "admin-edit-btn admin-revoke-btn";
+        revoke.textContent = "Revoke";
+        revoke.addEventListener("click", async () => {
+          // prompt() is ugly but it's an admin-only, rare action. null = they hit cancel
+          const reason = prompt(
+            `Revoke ${o.pack_name ?? "this pack"} from ${o.user_name}? Downloads stop right away and the Discord role comes off unless another pack they own uses it.\n\nReason (shows in the log):`,
+          );
+          if (reason === null) return;
+          revoke.disabled = true;
+          const r = await fetch(`/api/admin/orders/${o.id}/revoke`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reason }),
+          });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) {
+            alert(d.error ?? `HTTP ${r.status}`);
+            revoke.disabled = false;
+            return;
+          }
+          if (d.stillOwns) alert(`Revoked, but ${o.user_name} still owns it through another order or an all-access pack.`);
+          load();
+        });
+        st.append(" ", revoke);
+      }
       const noteTd = add(o.delivery_note ?? "—");
       if (o.status === "paid" && o.delivery_note?.includes("failed")) {
         noteTd.classList.add("delivery-failed");
