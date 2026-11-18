@@ -63,7 +63,7 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
   if (!status) return json({ error: "status must be open or closed" }, 400);
   const isOwner = ticket.user_id === user.id;
   // customers reopen by replying, the button is staff-only
-  if (!access.reply || (isOwner && !access.staff && status === "open"))
+  if (!access.reply || (isOwner && status === "open"))
     return json({ error: "Not allowed" }, 403);
   db.prepare("UPDATE tickets SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, ticket.id);
   return json({ ok: true });

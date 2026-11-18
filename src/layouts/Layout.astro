@@ -56,6 +56,9 @@ const contactEmail = getSetting("contact_email");
             <a href="/commissions" class={`nav-link ${active === "commissions" ? "active" : ""}`}>Commissions</a>
           </li>
           <li>
+            <a href="/support" class={`nav-link ${active === "support" ? "active" : ""}`}>Support</a>
+          </li>
+          <li>
             <a href="/cart" class={`nav-link nav-cart ${active === "cart" ? "active" : ""}`}>
               Cart
               <span class="nav-cart-count" data-cart-count hidden={cartCount === 0}>{cartCount}</span>
@@ -179,6 +182,7 @@ const contactEmail = getSetting("contact_email");
             {contactEmail && (
               <a href={`mailto:${contactEmail}`} class="footer-link">{contactEmail}</a>
             )}
+            <a href="/support" class="footer-link">Open a support ticket</a>
             <a href="/commissions" class="footer-link">Request a commission</a>
             <a href="/account" class="footer-link">Downloads</a>
           </div>

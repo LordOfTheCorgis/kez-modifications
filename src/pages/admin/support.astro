@@ -1,0 +1,120 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { can } from "../../lib/perms";
+import { db } from "../../lib/db";
+import { TICKET_CATEGORIES, TICKET_URGENCIES } from "../../lib/tickets";
+import type { TicketCategory, TicketUrgency } from "../../lib/tickets";
+
+if (!Astro.locals.user) return Astro.redirect("/api/auth/login?next=/admin/support");
+if (!can(Astro.locals.user, "support")) return Astro.redirect("/admin");
+
+const VIEWS = {
+  waiting: ["Needs a reply", "t.status = 'open' AND t.awaiting = 'staff'"],
+  open: ["All open", "t.status = 'open'"],
+  closed: ["Closed", "t.status = 'closed'"],
+  all: ["Everything", "1"],
+} as const;
+type View = keyof typeof VIEWS;
+const asked = Astro.url.searchParams.get("view") ?? "";
+const view: View = asked in VIEWS ? (asked as View) : "waiting";
+
+const counts = Object.fromEntries(
+  (Object.keys(VIEWS) as View[]).map((k) => [
+    k,
+    (db.prepare(`SELECT COUNT(*) AS n FROM tickets t WHERE ${VIEWS[k][1]}`).get() as { n: number }).n,
+  ]),
+) as Record<View, number>;
+
+// urgent stuff floats up, then oldest-waiting first so nobody sits at the bottom forever
+const tickets = db
+  .prepare(
+    `SELECT t.*, u.name AS customer,
+       (SELECT COUNT(*) FROM ticket_messages m WHERE m.ticket_id = t.id) AS message_count
+     FROM tickets t JOIN users u ON u.id = t.user_id
+     WHERE ${VIEWS[view][1]}
+     ORDER BY CASE t.urgency WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
+              ${view === "closed" || view === "all" ? "t.updated_at DESC" : "t.updated_at ASC"}
+     LIMIT 200`,
+  )
+  .all() as {
+  id: number;
+  subject: string;
+  category: string;
+  urgency: string;
+  status: string;
+  awaiting: string;
+  customer: string;
+  updated_at: string;
+  message_count: number;
+}[];
+---
+
+<AdminLayout section="support" title="Support">
+  <div class="admin-section-header an-header">
+    <h1>Support tickets</h1>
+    <div class="an-range" role="navigation" aria-label="Ticket filter">
+      {
+        (Object.keys(VIEWS) as View[]).map((k) => (
+          <a href={`?view=${k}`} aria-current={k === view ? "page" : undefined}>
+            {VIEWS[k][0]} <span class="an-count">{counts[k]}</span>
+          </a>
+        ))
+      }
+    </div>
+  </div>
+
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr><th>#</th><th>Subject</th><th>Customer</th><th>Category</th><th>Urgency</th><th>Status</th><th>Last activity</th></tr>
+      </thead>
+      <tbody>
+        {
+          tickets.length === 0 && (
+            <tr>
+              <td colspan="7" class="admin-empty">
+                {view === "waiting" ? "Nobody's waiting on a reply." : "No tickets here."}
+              </td>
+            </tr>
+          )
+        }
+        {
+          tickets.map((t) => (
+            <tr>
+              <td>{t.id}</td>
+              <td>
+                <a class="ticket-link" href={`/support/${t.id}`}>
+                  {t.subject}
+                </a>
+                <small class="ticket-count">{t.message_count} message{t.message_count === 1 ? "" : "s"}</small>
+              </td>
+              <td>{t.customer}</td>
+              <td>{TICKET_CATEGORIES[t.category as TicketCategory] ?? t.category}</td>
+              <td>
+                <span class={`urgency urgency-${t.urgency}`}>{TICKET_URGENCIES[t.urgency as TicketUrgency]?.split(",")[0] ?? t.urgency}</span>
+              </td>
+              <td>
+                {t.status === "closed" ? (
+                  <span class="ticket-state is-closed">Closed</span>
+                ) : t.awaiting === "staff" ? (
+                  <span class="ticket-state is-you">Needs reply</span>
+                ) : (
+                  <span class="ticket-state">Waiting on customer</span>
+                )}
+              </td>
+              <td>
+                <time datetime={`${t.updated_at}Z`} data-local>{t.updated_at}</time>
+              </td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+</AdminLayout>
+
+<script>
+  document.querySelectorAll<HTMLTimeElement>("time[data-local]").forEach((t) => {
+    t.textContent = new Date(t.dateTime.replace(" ", "T")).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  });
+</script>

@@ -564,3 +564,287 @@
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* ─── support ─── */
+.support-page {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 3rem 2rem 5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+.support-header h1 {
+  font-size: 2rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+}
+.support-header p {
+  color: var(--muted);
+}
+.support-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+.support-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem 1.35rem;
+  transition: var(--trans);
+}
+a.support-option:hover {
+  border-color: rgba(59, 130, 246, 0.5);
+  background: var(--surface2);
+}
+.support-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.support-option strong {
+  font-size: 1.05rem;
+}
+.support-option > span:last-child {
+  color: var(--muted2);
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+.support-option-kicker {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+.support-option.is-muted {
+  opacity: 0.6;
+}
+.support-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.5rem;
+  scroll-margin-top: calc(var(--nav-h) + 1rem);
+}
+.support-card h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+.support-signin p {
+  color: var(--muted2);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+.account-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.account-section-head h2 {
+  margin-bottom: 0;
+}
+
+.ticket-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.ticket-list-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.8rem 1rem;
+  transition: var(--trans);
+}
+.account-section .ticket-list-row {
+  background: var(--surface);
+}
+.ticket-list-row:hover {
+  border-color: rgba(59, 130, 246, 0.5);
+}
+.ticket-list-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.ticket-list-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ticket-list-main strong {
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ticket-list-main small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.ticket-state {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--muted2);
+  white-space: nowrap;
+}
+.ticket-state.is-you {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+.ticket-state.is-closed {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+.urgency {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.urgency-low {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--muted2);
+}
+.urgency-normal {
+  background: rgba(59, 130, 246, 0.14);
+  color: #60a5fa;
+}
+.urgency-high {
+  background: rgba(245, 165, 36, 0.15);
+  color: #fbbf24;
+}
+.urgency-urgent {
+  background: rgba(239, 68, 68, 0.16);
+  color: #f87171;
+}
+
+.ticket-page {
+  gap: 1.25rem;
+}
+.ticket-header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0.6rem 0 0.4rem;
+  overflow-wrap: anywhere;
+}
+.ticket-meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.ticket-sub {
+  font-size: 0.8rem;
+  color: var(--muted2);
+}
+.ticket-thread {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.ticket-msg {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.9rem 1.1rem;
+  max-width: 88%;
+}
+/* staff on the right, like any chat. on a staff screen the customer is on the left, which reads fine both ways */
+.ticket-msg.is-staff {
+  align-self: flex-end;
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.25);
+}
+.ticket-msg-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  margin-bottom: 0.4rem;
+}
+.ticket-msg-head time {
+  color: var(--muted);
+  font-size: 0.72rem;
+  margin-left: auto;
+  padding-left: 0.75rem;
+}
+.staff-tag {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #fff;
+  background: var(--accent);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.ticket-msg-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: #ddd;
+}
+.ticket-reply {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.ticket-reply textarea {
+  resize: vertical;
+}
+.ticket-reply-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+.ticket-hint {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.ticket-link {
+  font-weight: 600;
+}
+.ticket-link:hover {
+  color: var(--accent);
+}
+.ticket-count {
+  display: block;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+.an-count {
+  color: var(--muted);
+  font-weight: 500;
+  margin-left: 2px;
+}
+@media (max-width: 600px) {
+  .support-page {
+    padding: 2rem 1rem 4rem;
+  }
+  .ticket-msg {
+    max-width: 100%;
+  }
+}

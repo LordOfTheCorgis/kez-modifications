@@ -4,6 +4,7 @@ import { db } from "../lib/db";
 import type { PackRow } from "../lib/db";
 import { isDownloadable, ownsPack } from "../lib/ownership";
 import { CART_COOKIE } from "../lib/cart";
+import TicketList from "../components/TicketList.astro";
 
 const user = Astro.locals.user;
 
@@ -118,7 +119,23 @@ const notice = q.get("purchase") === "success"
             ))
           )}
         </div>
+
+        <div class="account-section" id="tickets">
+          <div class="account-section-head">
+            <h2>Support tickets</h2>
+            <a href="/support#new-ticket" class="btn btn-ghost btn-sm">
+              New ticket
+            </a>
+          </div>
+          <TicketList userId={user.id} />
+        </div>
       </div>
     )
   }
 </Layout>
+
+<script>
+  document.querySelectorAll<HTMLTimeElement>("time[data-local]").forEach((t) => {
+    t.textContent = new Date(t.dateTime.replace(" ", "T")).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  });
+</script>

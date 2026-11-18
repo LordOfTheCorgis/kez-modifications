@@ -11,7 +11,6 @@ const MAX_OPEN_PER_USER = 5;
 export const POST: APIRoute = async ({ request, locals }) => {
   const user = locals.user;
   if (!user) return json({ error: "Sign in to open a ticket" }, 401);
-  if (!rateLimit(`ticket:${user.id}`, 5, 60 * 60_000)) return json({ error: "That's a lot of tickets, try again in a bit" }, 429);
 
   const b = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const subject = typeof b?.subject === "string" ? b.subject.trim() : "";
@@ -34,6 +33,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const open = (db.prepare("SELECT COUNT(*) AS n FROM tickets WHERE user_id = ? AND status = 'open'").get(user.id) as { n: number }).n;
   if (open >= MAX_OPEN_PER_USER)
     return json({ error: `You have ${open} open tickets. Reply on one of those, or close one first.` }, 409);
+
+  // after validation, so fat-fingering the form a few times doesn't lock anyone out
+  if (!rateLimit(`ticket:${user.id}`, 5, 60 * 60_000)) return json({ error: "That's a lot of tickets, try again in a bit" }, 429);
 
   const id = db.transaction(() => {
     const t = db

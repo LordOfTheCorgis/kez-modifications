@@ -1,0 +1,167 @@
+---
+import Layout from "../layouts/Layout.astro";
+import TicketList from "../components/TicketList.astro";
+import { db } from "../lib/db";
+import { getSetting } from "../lib/settings";
+import { TICKET_CATEGORIES, TICKET_URGENCIES, MAX_TICKET_BODY } from "../lib/tickets";
+
+const user = Astro.locals.user;
+const discordInvite = getSetting("discord_invite_url");
+const orders = user
+  ? (db
+      .prepare(
+        `SELECT o.id, o.created_at, p.name FROM orders o JOIN packs p ON p.id = o.pack_id
+         WHERE o.user_id = ? AND o.status != 'pending' ORDER BY o.id DESC LIMIT 50`,
+      )
+      .all(user.id) as { id: number; created_at: string; name: string }[])
+  : [];
+---
+
+<Layout title="Support - Kez Modifications" description="Get help with a pack, a payment, or a download." active="support">
+  <div class="support-page">
+    <header class="support-header">
+      <div class="about-label">Support</div>
+      <h1>How do you want to reach us?</h1>
+      <p>Both go to the same team. Use whichever's easier for you.</p>
+    </header>
+
+    <div class="support-options">
+      <a class="support-option" href="#new-ticket">
+        <span class="support-option-kicker">On this site</span>
+        <strong>Open a ticket</strong>
+        <span>Write it up here and talk to staff on this page. You don't need to be in our Discord server.</span>
+      </a>
+      {
+        discordInvite ? (
+          <a class="support-option" href={discordInvite} target="_blank" rel="noopener noreferrer">
+            <span class="support-option-kicker">On Discord</span>
+            <strong>Open a Discord ticket</strong>
+            <span>Join the server and open a ticket there. Best if you're already hanging out in it.</span>
+          </a>
+        ) : (
+          <div class="support-option is-muted">
+            <span class="support-option-kicker">On Discord</span>
+            <strong>Discord tickets</strong>
+            <span>Ask in the Kez Modifications Discord server.</span>
+          </div>
+        )
+      }
+    </div>
+
+    <section class="support-card" id="new-ticket" aria-labelledby="new-ticket-title">
+      <h2 id="new-ticket-title">New ticket</h2>
+      {
+        !user ? (
+          <div class="support-signin">
+            <p>Sign in with your Discord account so we know who you are and what you've bought. You don't have to join the server.</p>
+            <a class="btn btn-primary" href="/api/auth/login?next=/support%23new-ticket">Sign in with Discord</a>
+          </div>
+        ) : (
+          <form class="admin-form" id="ticket-form">
+            <div class="form-row">
+              <label for="t-subject">Subject</label>
+              <input class="form-input" id="t-subject" required minlength="3" maxlength="120" placeholder="Police Pack download stops at 90%" />
+            </div>
+            <div class="admin-form-2col">
+              <div class="form-row">
+                <label for="t-category">What's it about?</label>
+                <select class="form-input" id="t-category" required>
+                  {Object.entries(TICKET_CATEGORIES).map(([k, v]) => (
+                    <option value={k}>{v}</option>
+                  ))}
+                </select>
+              </div>
+              <div class="form-row">
+                <label for="t-urgency">How urgent?</label>
+                <select class="form-input" id="t-urgency" required>
+                  {Object.entries(TICKET_URGENCIES).map(([k, v]) => (
+                    <option value={k} selected={k === "normal"}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {orders.length > 0 && (
+              <div class="form-row">
+                <label for="t-order">
+                  Related order <span class="label-hint">optional</span>
+                </label>
+                <select class="form-input" id="t-order">
+                  <option value="">Not about a specific order</option>
+                  {orders.map((o) => (
+                    <option value={o.id}>
+                      #{o.id} · {o.name} · {o.created_at.slice(0, 10)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div class="form-row">
+              <label for="t-body">Message</label>
+              <textarea
+                class="form-input"
+                id="t-body"
+                rows="6"
+                required
+                maxlength={MAX_TICKET_BODY}
+                placeholder="What happened, what you expected, and anything you've already tried."
+              ></textarea>
+            </div>
+            <div class="error-note" id="t-error" role="alert" />
+            <div class="admin-form-actions">
+              <button class="btn btn-primary" type="submit" id="t-submit">Open ticket</button>
+            </div>
+          </form>
+        )
+      }
+    </section>
+
+    {
+      user && (
+        <section class="support-card" aria-labelledby="my-tickets-title">
+          <h2 id="my-tickets-title">Your tickets</h2>
+          <TicketList userId={user.id} />
+        </section>
+      )
+    }
+  </div>
+</Layout>
+
+<script>
+  document.querySelectorAll<HTMLTimeElement>("time[data-local]").forEach((t) => {
+    t.textContent = new Date(t.dateTime.replace(" ", "T")).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  });
+
+  const form = document.getElementById("ticket-form") as HTMLFormElement | null;
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const val = (id: string) => (document.getElementById(id) as HTMLInputElement | null)?.value ?? "";
+    const errBox = document.getElementById("t-error")!;
+    const btn = document.getElementById("t-submit") as HTMLButtonElement;
+    errBox.textContent = "";
+    btn.disabled = true;
+    try {
+      const res = await fetch("/api/tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subject: val("t-subject"),
+          category: val("t-category"),
+          urgency: val("t-urgency"),
+          order_id: val("t-order") || null,
+          body: val("t-body"),
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.id) {
+        location.href = `/support/${data.id}`;
+        return;
+      }
+      errBox.textContent = data?.error ?? `Something went wrong (HTTP ${res.status})`;
+    } catch {
+      errBox.textContent = "Network error, try again";
+    }
+    btn.disabled = false;
+  });
+</script>

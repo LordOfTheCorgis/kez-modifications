@@ -1,0 +1,42 @@
+---
+import { db } from "../lib/db";
+import type { TicketRow } from "../lib/db";
+import { TICKET_CATEGORIES } from "../lib/tickets";
+import type { TicketCategory } from "../lib/tickets";
+
+interface Props {
+  userId: number;
+}
+const tickets = db
+  .prepare("SELECT * FROM tickets WHERE user_id = ? ORDER BY status = 'closed', updated_at DESC LIMIT 50")
+  .all(Astro.props.userId) as TicketRow[];
+---
+
+{
+  tickets.length === 0 ? (
+    <p class="admin-empty">No tickets yet.</p>
+  ) : (
+    <ul class="ticket-list">
+      {tickets.map((t) => (
+        <li>
+          <a href={`/support/${t.id}`} class="ticket-list-row">
+            <span class="ticket-list-main">
+              <strong>{t.subject}</strong>
+              <small>
+                #{t.id} · {TICKET_CATEGORIES[t.category as TicketCategory] ?? t.category} ·{" "}
+                <time datetime={`${t.updated_at}Z`} data-local>{t.updated_at}</time>
+              </small>
+            </span>
+            {t.status === "closed" ? (
+              <span class="ticket-state is-closed">Closed</span>
+            ) : t.awaiting === "customer" ? (
+              <span class="ticket-state is-you">Reply waiting</span>
+            ) : (
+              <span class="ticket-state">Waiting on staff</span>
+            )}
+          </a>
+        </li>
+      ))}
+    </ul>
+  )
+}

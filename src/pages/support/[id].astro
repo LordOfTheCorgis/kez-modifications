@@ -1,0 +1,220 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { db } from "../../lib/db";
+import { getTicket, ticketAccess, TICKET_CATEGORIES, TICKET_URGENCIES, MAX_TICKET_BODY } from "../../lib/tickets";
+import type { TicketCategory, TicketUrgency } from "../../lib/tickets";
+
+const user = Astro.locals.user;
+if (!user) return Astro.redirect(`/api/auth/login?next=${encodeURIComponent(Astro.url.pathname)}`);
+const ticket = getTicket(Number(Astro.params.id ?? 0));
+const access = ticket ? ticketAccess(user, ticket) : null;
+if (!ticket || !access?.view) return new Response("Not found", { status: 404 });
+
+const messages = db
+  .prepare(
+    `SELECT m.id, m.body, m.is_staff, m.created_at, COALESCE(u.name, 'deleted user') AS author
+     FROM ticket_messages m LEFT JOIN users u ON u.id = m.user_id
+     WHERE m.ticket_id = ? ORDER BY m.id`,
+  )
+  .all(ticket.id) as { id: number; body: string; is_staff: number; created_at: string; author: string }[];
+const customer = db.prepare("SELECT name, discord_id FROM users WHERE id = ?").get(ticket.user_id) as
+  | { name: string; discord_id: string }
+  | undefined;
+const order = ticket.order_id
+  ? (db
+      .prepare("SELECT o.id, o.status, o.amount, p.name FROM orders o LEFT JOIN packs p ON p.id = o.pack_id WHERE o.id = ?")
+      .get(ticket.order_id) as { id: number; status: string; amount: number | null; name: string | null } | undefined)
+  : undefined;
+const lastId = messages.at(-1)?.id ?? 0;
+---
+
+<Layout title={`#${ticket.id} ${ticket.subject} - Support`} active="support">
+  <div class="support-page ticket-page">
+    <a href={access.staff ? "/admin/support" : "/support"} class="detail-back">← {access.staff ? "Support inbox" : "All tickets"}</a>
+
+    <header class="ticket-header">
+      <div class="ticket-meta-line">
+        <span>#{ticket.id}</span>
+        <span class={`urgency urgency-${ticket.urgency}`}>{TICKET_URGENCIES[ticket.urgency as TicketUrgency] ?? ticket.urgency}</span>
+        <span>{TICKET_CATEGORIES[ticket.category as TicketCategory] ?? ticket.category}</span>
+        <span id="ticket-status" class={`ticket-state ${ticket.status === "closed" ? "is-closed" : ""}`}>
+          {ticket.status === "closed" ? "Closed" : "Open"}
+        </span>
+      </div>
+      <h1>{ticket.subject}</h1>
+      {access.staff && customer && (
+        <p class="ticket-sub">
+          From <strong>{customer.name}</strong> · Discord {customer.discord_id}
+        </p>
+      )}
+      {order && (
+        <p class="ticket-sub">
+          Order #{order.id} · {order.name ?? "deleted pack"} · {order.status}
+          {order.amount !== null && ` · ${order.amount === 0 ? "free" : `$${(order.amount / 100).toFixed(2)}`}`}
+        </p>
+      )}
+    </header>
+
+    <ol class="ticket-thread" id="thread" data-ticket={ticket.id} data-last={lastId} aria-live="polite">
+      {
+        messages.map((m) => (
+          <li class={`ticket-msg ${m.is_staff ? "is-staff" : ""}`}>
+            <div class="ticket-msg-head">
+              <strong>{m.author}</strong>
+              {m.is_staff ? <span class="staff-tag">Staff</span> : null}
+              <time datetime={`${m.created_at}Z`} data-local>{m.created_at}</time>
+            </div>
+            <p class="ticket-msg-body">{m.body}</p>
+          </li>
+        ))
+      }
+    </ol>
+
+    {
+      access.reply ? (
+        <form class="ticket-reply" id="reply-form">
+          <label for="reply-body" class="sr-only">Your reply</label>
+          <textarea
+            class="form-input"
+            id="reply-body"
+            rows="4"
+            required
+            maxlength={MAX_TICKET_BODY}
+            placeholder={ticket.status === "closed" ? "Replying reopens this ticket." : "Write a reply…"}
+          ></textarea>
+          <div class="error-note" id="reply-error" role="alert" />
+          <div class="ticket-reply-actions">
+            {ticket.status === "open" ? (
+              <button type="button" class="btn btn-ghost" id="status-btn" data-to="closed">
+                {access.staff ? "Close ticket" : "Mark as solved"}
+              </button>
+            ) : access.staff ? (
+              <button type="button" class="btn btn-ghost" id="status-btn" data-to="open">
+                Reopen
+              </button>
+            ) : null}
+            <button type="submit" class="btn btn-primary" id="reply-btn">
+              Send reply
+            </button>
+          </div>
+          <p class="ticket-hint">New replies show up here on their own, no need to refresh. Ctrl+Enter sends.</p>
+        </form>
+      ) : (
+        <p class="ticket-hint">You have view-only access to support tickets.</p>
+      )
+    }
+  </div>
+</Layout>
+
+<script>
+  const fmt = (iso: string) =>
+    new Date(iso.replace(" ", "T")).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  document.querySelectorAll<HTMLTimeElement>("time[data-local]").forEach((t) => (t.textContent = fmt(t.dateTime)));
+
+  const thread = document.getElementById("thread")!;
+  const id = thread.dataset.ticket;
+  let last = Number(thread.dataset.last);
+  type Msg = { id: number; body: string; is_staff: number; created_at: string; author: string };
+
+  function append(m: Msg) {
+    const li = document.createElement("li");
+    li.className = `ticket-msg ${m.is_staff ? "is-staff" : ""}`;
+    const head = document.createElement("div");
+    head.className = "ticket-msg-head";
+    const who = document.createElement("strong");
+    who.textContent = m.author;
+    head.append(who);
+    if (m.is_staff) {
+      const tag = document.createElement("span");
+      tag.className = "staff-tag";
+      tag.textContent = "Staff";
+      head.append(tag);
+    }
+    const time = document.createElement("time");
+    time.dateTime = `${m.created_at}Z`;
+    time.textContent = fmt(time.dateTime);
+    head.append(time);
+    const body = document.createElement("p");
+    body.className = "ticket-msg-body";
+    body.textContent = m.body;
+    li.append(head, body);
+    thread.append(li);
+  }
+
+  let polling = false;
+  async function poll() {
+    if (polling) return;
+    polling = true;
+    try {
+      const res = await fetch(`/api/tickets/${id}?after=${last}`);
+      if (res.ok) {
+        const data = await res.json();
+        for (const m of data.messages as Msg[]) {
+          append(m);
+          last = m.id;
+        }
+        const st = document.getElementById("ticket-status")!;
+        st.textContent = data.status === "closed" ? "Closed" : "Open";
+        st.classList.toggle("is-closed", data.status === "closed");
+      }
+    } catch {
+      /* offline for a sec, next tick tries again */
+    }
+    polling = false;
+  }
+  // "live" = a 10s poll while the tab is visible. websockets would mean a second
+  // long-lived server process for a desk that gets a handful of tickets a day
+  setInterval(() => {
+    if (document.visibilityState === "visible") poll();
+  }, 10_000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") poll();
+  });
+
+  const form = document.getElementById("reply-form") as HTMLFormElement | null;
+  const input = document.getElementById("reply-body") as HTMLTextAreaElement | null;
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const errBox = document.getElementById("reply-error")!;
+    const btn = document.getElementById("reply-btn") as HTMLButtonElement;
+    errBox.textContent = "";
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/tickets/${id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: input!.value }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) errBox.textContent = data?.error ?? `HTTP ${res.status}`;
+      else {
+        input!.value = "";
+        // replying reopens a closed ticket and the buttons depend on that, cheap enough to just reload
+        if (document.getElementById("ticket-status")!.classList.contains("is-closed")) location.reload();
+        else await poll();
+      }
+    } catch {
+      errBox.textContent = "Network error, try again";
+    }
+    btn.disabled = false;
+  });
+  // ctrl/cmd+enter sends, plain enter stays a newline
+  input?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) form?.requestSubmit();
+  });
+
+  document.getElementById("status-btn")?.addEventListener("click", async (e) => {
+    const btn = e.currentTarget as HTMLButtonElement;
+    btn.disabled = true;
+    const res = await fetch(`/api/tickets/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: btn.dataset.to }),
+    });
+    if (res.ok) location.reload();
+    else {
+      document.getElementById("reply-error")!.textContent = (await res.json().catch(() => ({}))).error ?? `HTTP ${res.status}`;
+      btn.disabled = false;
+    }
+  });
+</script>
