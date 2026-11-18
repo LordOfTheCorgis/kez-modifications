@@ -126,6 +126,15 @@ addColumn("users", "staff_role_id", "INTEGER REFERENCES staff_roles(id) ON DELET
 addColumn("users", "perm_overrides", "TEXT NOT NULL DEFAULT '{}'");
 // set when a pre-order gets delivered, drives the "it's out" banner on /account
 addColumn("orders", "released_at", "TEXT");
+// "Update history" on the product page. released_on is a plain YYYY-MM-DD so
+// Kez can backfill old versions with their real dates
+db.exec(`CREATE TABLE IF NOT EXISTS pack_versions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pack_id INTEGER NOT NULL REFERENCES packs(id) ON DELETE CASCADE,
+  version TEXT NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  released_on TEXT NOT NULL DEFAULT (date('now'))
+)`);
 // null on admin grants and anything bought before the checkbox existed
 addColumn("orders", "tos_accepted_at", "TEXT");
 
@@ -227,6 +236,14 @@ export interface PackImageRow {
   pack_id: number;
   url: string;
   sort_order: number;
+}
+
+export interface PackVersionRow {
+  id: number;
+  pack_id: number;
+  version: string;
+  notes: string;
+  released_on: string;
 }
 
 export interface ReviewRow {
