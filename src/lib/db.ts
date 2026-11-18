@@ -135,6 +135,30 @@ db.exec(`CREATE TABLE IF NOT EXISTS pack_versions (
   notes TEXT NOT NULL DEFAULT '',
   released_on TEXT NOT NULL DEFAULT (date('now'))
 )`);
+// on-site support. awaiting flips on every message so both inboxes can show
+// whose turn it is without digging through the thread
+db.exec(`CREATE TABLE IF NOT EXISTS tickets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  subject TEXT NOT NULL,
+  category TEXT NOT NULL,
+  urgency TEXT NOT NULL DEFAULT 'normal',
+  order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+  status TEXT NOT NULL DEFAULT 'open',
+  awaiting TEXT NOT NULL DEFAULT 'staff',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_tickets_user ON tickets(user_id);
+CREATE TABLE IF NOT EXISTS ticket_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  is_staff INTEGER NOT NULL DEFAULT 0,
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket ON ticket_messages(ticket_id);`);
 // null on admin grants and anything bought before the checkbox existed
 addColumn("orders", "tos_accepted_at", "TEXT");
 
@@ -244,6 +268,28 @@ export interface PackVersionRow {
   version: string;
   notes: string;
   released_on: string;
+}
+
+export interface TicketRow {
+  id: number;
+  user_id: number;
+  subject: string;
+  category: string;
+  urgency: string;
+  order_id: number | null;
+  status: "open" | "closed";
+  awaiting: "staff" | "customer";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TicketMessageRow {
+  id: number;
+  ticket_id: number;
+  user_id: number | null;
+  is_staff: number;
+  body: string;
+  created_at: string;
 }
 
 export interface ReviewRow {

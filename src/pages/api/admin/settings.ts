@@ -29,6 +29,7 @@ export const GET: APIRoute = ({ locals }) => {
     "webhook_sales",
     "webhook_log",
     "webhook_discounts",
+    "webhook_support",
     "discord_invite_url",
     "contact_email",
     "hero_slides",

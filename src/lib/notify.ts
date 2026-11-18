@@ -1,6 +1,13 @@
 import { getSetting } from "./settings";
 
-export type NotifyChannel = "sales" | "log" | "discounts";
+export type NotifyChannel = "sales" | "log" | "discounts" | "support";
+
+/** Optional extras for a richer embed. Most callers just send a string. */
+export interface EmbedExtra {
+  fields?: { name: string; value: string; inline?: boolean }[];
+  url?: string;
+  color?: number;
+}
 
 // a broken config (bad webhook secret, dead bot token) fails on every single
 // request, and 200 identical pings in the log channel bury the one that matters
@@ -24,15 +31,19 @@ const FALLBACK: Record<NotifyChannel, { color: number; title: string }> = {
   sales: { color: 0x30a46c, title: "Sales" },
   log: { color: 0x3e8ef7, title: "Store log" },
   discounts: { color: 0xd6a84e, title: "Discount" },
+  support: { color: 0x3e8ef7, title: "Support ticket" },
 };
 
-export function toEmbed(message: string, channel: NotifyChannel) {
+export function toEmbed(message: string, channel: NotifyChannel, extra: EmbedExtra = {}) {
   const emoji = message.match(/^:[a-z_]+:/)?.[0] ?? "";
   const kind = KINDS[emoji] ?? FALLBACK[channel];
   return {
     title: kind.title,
     description: message.slice(emoji.length).trim().slice(0, 4000),
-    color: kind.color,
+    color: extra.color ?? kind.color,
+    ...(extra.url ? { url: extra.url } : {}),
+    // discord caps field values at 1024 and rejects the whole embed past that
+    ...(extra.fields ? { fields: extra.fields.slice(0, 25).map((f) => ({ ...f, value: f.value.slice(0, 1024) || "—" })) } : {}),
     footer: { text: "Kez Modifications" },
     timestamp: new Date().toISOString(),
   };
@@ -45,7 +56,7 @@ export function toEmbed(message: string, channel: NotifyChannel) {
  * Every log-channel message also goes to stdout, so nothing is lost if the
  * webhook is down or rate limited.
  */
-export async function logToDiscord(message: string, channel: NotifyChannel = "log"): Promise<void> {
+export async function logToDiscord(message: string, channel: NotifyChannel = "log", extra?: EmbedExtra): Promise<void> {
   if (channel === "log") {
     console.error(`[log] ${message}`);
     const now = Date.now();
@@ -56,7 +67,7 @@ export async function logToDiscord(message: string, channel: NotifyChannel = "lo
   }
   const url = getSetting(`webhook_${channel}`);
   if (!url) return;
-  const body = JSON.stringify({ embeds: [toEmbed(message, channel)] });
+  const body = JSON.stringify({ embeds: [toEmbed(message, channel, extra)] });
   try {
     let res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body });
     // discord webhooks cap around 30/min. a launch rush can hit that on the

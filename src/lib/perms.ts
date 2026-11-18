@@ -14,6 +14,7 @@ export const SECTIONS = {
   discounts: "Discounts",
   commissions: "Commissions",
   reviews: "Reviews",
+  support: "Support tickets",
   users: "Users",
   settings: "Settings",
 } as const;
