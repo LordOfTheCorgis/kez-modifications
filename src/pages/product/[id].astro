@@ -1,7 +1,7 @@
 ---
 import Layout from "../../layouts/Layout.astro";
 import { db } from "../../lib/db";
-import type { PackImageRow, PackRow } from "../../lib/db";
+import type { PackImageRow, PackRow, PackVersionRow } from "../../lib/db";
 import { canView, isDownloadable, ownsPack } from "../../lib/ownership";
 import { renderMarkdown, markdownToPlainText } from "../../lib/markdown";
 
@@ -29,6 +29,23 @@ const preordered =
 const priceLabel = pack.price === 0 ? "Free" : `$${(pack.price / 100).toFixed(2)}`;
 const descriptionHtml = renderMarkdown(pack.description);
 const descriptionPlain = markdownToPlainText(pack.description);
+
+const versions = (
+  db.prepare("SELECT * FROM pack_versions WHERE pack_id = ? ORDER BY released_on DESC, id DESC").all(pack.id) as PackVersionRow[]
+).map((v) => ({
+  ...v,
+  // people type "v1.4" and "1.4" interchangeably, normalize so it never reads "vv1.4"
+  label: `v${v.version.replace(/^v/i, "")}`,
+  // dates are bare YYYY-MM-DD, pin to UTC or it renders a day early in the US
+  date: new Date(`${v.released_on}T00:00:00Z`).toLocaleDateString("en-US", {
+    timeZone: "UTC",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }),
+  html: renderMarkdown(v.notes),
+}));
+const VISIBLE_VERSIONS = 3;
 ---
 
 <Layout
@@ -65,6 +82,11 @@ const descriptionPlain = markdownToPlainText(pack.description);
         {pack.status === "hidden" && <span class="badge badge-soon" style="align-self:flex-start;">Hidden from shop</span>}
         <div class="detail-name">{pack.name}</div>
         <div class="detail-price">{priceLabel}</div>
+        {versions[0] && (
+          <a class="detail-version" href="#update-history">
+            Latest {versions[0].label} · updated {versions[0].date}
+          </a>
+        )}
         <div class="detail-desc" set:html={descriptionHtml} />
 
         <div class="error-note" id="buy-error"></div>
@@ -101,6 +123,44 @@ const descriptionPlain = markdownToPlainText(pack.description);
         }
       </div>
     </div>
+
+    {
+      versions.length > 0 && (
+        <section class="update-history" id="update-history" aria-labelledby="uh-title">
+          <h2 id="uh-title">Update history</h2>
+          <ol class="uh-list">
+            {versions.slice(0, VISIBLE_VERSIONS).map((v, i) => (
+              <li class="uh-item">
+                <div class="uh-head">
+                  <strong>{v.label}</strong>
+                  {i === 0 && <span class="uh-latest">Latest</span>}
+                  <time datetime={v.released_on}>{v.date}</time>
+                </div>
+                {v.notes && <div class="detail-desc uh-notes" set:html={v.html} />}
+              </li>
+            ))}
+          </ol>
+          {versions.length > VISIBLE_VERSIONS && (
+            <details class="uh-older">
+              <summary>
+                Older versions ({versions.length - VISIBLE_VERSIONS})
+              </summary>
+              <ol class="uh-list">
+                {versions.slice(VISIBLE_VERSIONS).map((v) => (
+                  <li class="uh-item">
+                    <div class="uh-head">
+                      <strong>{v.label}</strong>
+                      <time datetime={v.released_on}>{v.date}</time>
+                    </div>
+                    {v.notes && <div class="detail-desc uh-notes" set:html={v.html} />}
+                  </li>
+                ))}
+              </ol>
+            </details>
+          )}
+        </section>
+      )
+    }
   </div>
 </Layout>
 

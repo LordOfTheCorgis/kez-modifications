@@ -431,10 +431,6 @@
 .cart-summary .btn-purchase {
   margin-top: 0.25rem;
 }
-.cart-summary .btn-purchase:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
 .sr-only {
   position: absolute;
   width: 1px;
@@ -481,4 +477,90 @@
 .btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.detail-version {
+  align-self: flex-start;
+  font-size: 0.75rem;
+  color: var(--muted2);
+  border-bottom: 1px dashed var(--muted);
+}
+.detail-version:hover {
+  color: var(--text);
+}
+.update-history {
+  max-width: 760px;
+  margin-top: 3rem;
+  scroll-margin-top: calc(var(--nav-h) + 1rem);
+}
+.update-history h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+.uh-list {
+  list-style: none;
+  border-left: 2px solid var(--border);
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.uh-item {
+  position: relative;
+}
+/* timeline dot sitting on the left rule */
+.uh-item::before {
+  content: "";
+  position: absolute;
+  left: calc(-1.25rem - 6px);
+  top: 0.35rem;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--surface2);
+  border: 2px solid var(--muted);
+}
+/* direct child of the section only, or the first item inside "Older versions" lights up too */
+.update-history > .uh-list > .uh-item:first-child::before {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.uh-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+}
+.uh-head time {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.uh-latest {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  background: rgba(59, 130, 246, 0.12);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.uh-notes {
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+}
+.uh-older {
+  margin-top: 1.25rem;
+}
+.uh-older summary {
+  cursor: pointer;
+  color: var(--muted2);
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+.uh-older summary:focus-visible,
+.detail-version:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
