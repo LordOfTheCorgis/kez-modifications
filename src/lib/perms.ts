@@ -9,6 +9,8 @@ import type { StaffRoleRow, UserRow } from "./db";
 export const SECTIONS = {
   products: "Products & categories",
   orders: "Orders",
+  // own section so staff who handle orders don't automatically see revenue totals
+  analytics: "Analytics",
   discounts: "Discounts",
   commissions: "Commissions",
   reviews: "Reviews",

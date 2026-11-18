@@ -2055,3 +2055,214 @@ footer {
 .delivery-failed {
   color: #f87171;
 }
+
+/* ─── analytics ─── */
+.an-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.an-range {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px;
+}
+.an-range a {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted2);
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+.an-range a:hover {
+  color: var(--text);
+}
+.an-range a[aria-current="page"] {
+  background: var(--surface2);
+  color: var(--text);
+}
+.an-range a:focus-visible,
+.an-col:focus-visible,
+.an-table-toggle summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.an-tiles,
+.an-insights {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+.an-tile,
+.an-insight {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.an-tile strong {
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.an-insight strong {
+  font-size: 1.2rem;
+  font-variant-numeric: tabular-nums;
+}
+.an-tile-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.an-tile-foot {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.an-up {
+  color: #4ade80;
+}
+.an-down {
+  color: #f87171;
+}
+.an-lifetime {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0.75rem 0 1.5rem;
+}
+.an-chart-card {
+  padding: 1.25rem 1.25rem 1rem;
+  margin-bottom: 2rem;
+}
+.an-chart-card h2,
+.an-h2 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+.an-chart {
+  position: relative;
+  height: 240px;
+  margin: 0 0 1.75rem 3.25rem;
+}
+.an-grid,
+.an-bars {
+  position: absolute;
+  inset: 0;
+}
+.an-gridline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.an-gridline span {
+  position: absolute;
+  right: calc(100% + 8px);
+  top: -0.5em;
+  font-size: 0.65rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.an-bars {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+/* the column is the hit target, not the bar, so a $3 day is still hoverable */
+.an-col {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 1px;
+  outline-offset: -2px;
+}
+.an-bar {
+  width: 100%;
+  max-width: 28px;
+  min-height: 0;
+  background: var(--accent);
+  border-radius: 4px 4px 0 0;
+}
+.an-col:hover .an-bar,
+.an-col:focus .an-bar {
+  background: #60a5fa;
+}
+.an-tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  display: none;
+  flex-direction: column;
+  z-index: 2;
+  pointer-events: none;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+.an-tip span {
+  color: var(--muted2);
+}
+.an-col:hover .an-tip,
+.an-col:focus .an-tip {
+  display: flex;
+  /* tip sits above the column, which is the full chart height */
+  bottom: auto;
+  top: -0.5rem;
+  transform: translate(-50%, -100%);
+}
+.an-xlabel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.65rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.an-table-toggle summary {
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--muted2);
+}
+.an-table-toggle table {
+  margin-top: 0.75rem;
+}
+.an-tables {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.25rem;
+  margin-top: 2rem;
+}
+.an-tables .admin-table-wrap {
+  margin: 0;
+}
+@media (max-width: 600px) {
+  .an-chart {
+    height: 180px;
+  }
+  /* no room for 8 date labels on a phone, keep the two ends */
+  .an-col:not(:first-child):not(:last-child) .an-xlabel {
+    display: none;
+  }
+  .an-tile strong {
+    font-size: 1.3rem;
+  }
+}

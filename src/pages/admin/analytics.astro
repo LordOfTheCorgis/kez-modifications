@@ -1,0 +1,301 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { can } from "../../lib/perms";
+import { db } from "../../lib/db";
+
+if (!Astro.locals.user) return Astro.redirect("/api/auth/login?next=/admin/analytics");
+if (!can(Astro.locals.user, "analytics")) return Astro.redirect("/admin");
+
+const RANGES = { "7": "7 days", "30": "30 days", "90": "90 days", "365": "12 months", all: "All time" } as const;
+type Range = keyof typeof RANGES;
+const asked = Astro.url.searchParams.get("range") ?? "";
+const range: Range = asked in RANGES ? (asked as Range) : "30";
+const days = range === "all" ? null : Number(range);
+
+// money in = paid + pre-orders (charged, just not delivered). revoked is shown
+// on its own line since that's usually a refund/chargeback we don't track
+const REV = "o.status IN ('paid', 'preorder')";
+// a cart checkout is one stripe session with a row per pack. admin grants and
+// free claims have no session, so each row counts as its own "order"
+const CHECKOUT = "COALESCE(o.stripe_session_id, 'row' || o.id)";
+// shortcut: buckets by the server's local time. if the box runs UTC, late-evening US sales land on tomorrow
+const LOCAL = "datetime(o.created_at, 'localtime')";
+
+const since = days ? `datetime('now', '-${days} days')` : "'0000'";
+const prevSince = days ? `datetime('now', '-${days * 2} days')` : null;
+
+function period(from: string, to: string) {
+  return db
+    .prepare(
+      `SELECT COALESCE(SUM(o.amount), 0) AS revenue,
+              COUNT(DISTINCT CASE WHEN o.amount > 0 THEN ${CHECKOUT} END) AS paid_checkouts,
+              COUNT(DISTINCT ${CHECKOUT}) AS checkouts,
+              COUNT(DISTINCT o.user_id) AS buyers,
+              COUNT(*) AS items
+       FROM orders o WHERE ${REV} AND o.created_at >= ${from} AND o.created_at < ${to}`,
+    )
+    .get() as { revenue: number; paid_checkouts: number; checkouts: number; buyers: number; items: number };
+}
+const cur = period(since, "datetime('now', '+1 day')");
+const prev = prevSince ? period(prevSince, since) : null;
+const aov = (p: typeof cur) => (p.paid_checkouts ? Math.round(p.revenue / p.paid_checkouts) : 0);
+
+const money = (c: number) => `$${(c / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const delta = (now: number, before: number | undefined) => {
+  if (before === undefined) return null;
+  if (before === 0) return now > 0 ? { text: "new", up: true } : null;
+  const pct = Math.round(((now - before) / before) * 100);
+  return { text: `${pct > 0 ? "+" : ""}${pct}%`, up: pct >= 0 };
+};
+const tiles = [
+  { label: "Revenue", value: money(cur.revenue), d: delta(cur.revenue, prev?.revenue) },
+  { label: "Orders", value: String(cur.checkouts), d: delta(cur.checkouts, prev?.checkouts), sub: `${cur.items} pack${cur.items === 1 ? "" : "s"}` },
+  { label: "Customers", value: String(cur.buyers), d: delta(cur.buyers, prev?.buyers) },
+  { label: "Avg paid order", value: money(aov(cur)), d: prev ? delta(aov(cur), aov(prev)) : null },
+];
+
+// ─── revenue over time ───
+// daily up to 90 days, monthly past that or the bars turn into hairs
+const monthly = !days || days > 90;
+const bucketExpr = monthly ? `strftime('%Y-%m', ${LOCAL})` : `date(${LOCAL})`;
+const rows = db
+  .prepare(
+    `SELECT ${bucketExpr} AS bucket, COALESCE(SUM(o.amount), 0) AS revenue, COUNT(DISTINCT ${CHECKOUT}) AS orders
+     FROM orders o WHERE ${REV} AND o.created_at >= ${since} GROUP BY bucket ORDER BY bucket`,
+  )
+  .all() as { bucket: string; revenue: number; orders: number }[];
+const byBucket = new Map(rows.map((r) => [r.bucket, r]));
+
+// fill the gaps so a dead week shows as empty bars instead of vanishing
+const pad = (n: number) => String(n).padStart(2, "0");
+const keyOf = (d: Date) => (monthly ? `${d.getFullYear()}-${pad(d.getMonth() + 1)}` : `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+const today = new Date();
+let start = new Date(today);
+if (days) start.setDate(today.getDate() - days + 1);
+else if (rows[0]) start = new Date(`${rows[0].bucket}${monthly ? "-01" : ""}T00:00:00`);
+if (monthly) start.setDate(1);
+const buckets: { key: string; label: string; revenue: number; orders: number }[] = [];
+for (const d = new Date(start); d <= today; monthly ? d.setMonth(d.getMonth() + 1) : d.setDate(d.getDate() + 1)) {
+  const key = keyOf(d);
+  buckets.push({
+    key,
+    label: d.toLocaleDateString("en-US", monthly ? { month: "short", year: "numeric" } : { month: "short", day: "numeric" }),
+    revenue: byBucket.get(key)?.revenue ?? 0,
+    orders: byBucket.get(key)?.orders ?? 0,
+  });
+}
+const peak = Math.max(...buckets.map((b) => b.revenue), 1);
+// a few round gridlines so the bars have a scale to read against
+const step = (() => {
+  const raw = peak / 4;
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  return ([1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw) ?? raw);
+})();
+const top = Math.max(step * Math.ceil(peak / step), step);
+const ticks = [1, 2, 3, 4].map((i) => step * i).filter((t) => t <= top);
+const labelEvery = Math.ceil(buckets.length / 8);
+
+// ─── tables ───
+const topPacks = db
+  .prepare(
+    `SELECT p.name, COUNT(*) AS units, COALESCE(SUM(o.amount), 0) AS revenue
+     FROM orders o JOIN packs p ON p.id = o.pack_id
+     WHERE ${REV} AND o.created_at >= ${since}
+     GROUP BY o.pack_id ORDER BY revenue DESC, units DESC LIMIT 10`,
+  )
+  .all() as { name: string; units: number; revenue: number }[];
+const topCustomers = db
+  .prepare(
+    `SELECT u.name, u.discord_id, COUNT(DISTINCT ${CHECKOUT}) AS orders, COALESCE(SUM(o.amount), 0) AS spent
+     FROM orders o JOIN users u ON u.id = o.user_id
+     WHERE ${REV} AND o.created_at >= ${since}
+     GROUP BY o.user_id ORDER BY spent DESC, orders DESC LIMIT 10`,
+  )
+  .all() as { name: string; discord_id: string; orders: number; spent: number }[];
+const codes = db
+  .prepare(
+    `SELECT UPPER(o.discount_code) AS code, COUNT(DISTINCT ${CHECKOUT}) AS uses, COALESCE(SUM(o.amount), 0) AS revenue
+     FROM orders o WHERE ${REV} AND o.discount_code IS NOT NULL AND o.created_at >= ${since}
+     GROUP BY UPPER(o.discount_code) ORDER BY uses DESC LIMIT 10`,
+  )
+  .all() as { code: string; uses: number; revenue: number }[];
+
+// ─── customer insights ───
+const n = (sql: string) => (db.prepare(sql).get() as { n: number }).n;
+const newBuyers = n(
+  `SELECT COUNT(*) AS n FROM (SELECT o.user_id, MIN(o.created_at) AS first FROM orders o WHERE ${REV} GROUP BY o.user_id) WHERE first >= ${since}`,
+);
+const returning = cur.buyers - newBuyers;
+const signups = n(`SELECT COUNT(*) AS n FROM users WHERE created_at >= ${since}`);
+const freeClaims = n(`SELECT COUNT(*) AS n FROM orders o WHERE ${REV} AND o.amount = 0 AND o.created_at >= ${since}`);
+const repeatRate = n(
+  `SELECT COUNT(*) AS n FROM (SELECT o.user_id FROM orders o WHERE ${REV} AND o.amount > 0 GROUP BY o.user_id HAVING COUNT(DISTINCT ${CHECKOUT}) > 1)`,
+);
+const payingEver = n(`SELECT COUNT(DISTINCT o.user_id) AS n FROM orders o WHERE ${REV} AND o.amount > 0`);
+const revoked = db
+  .prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(o.amount), 0) AS amount FROM orders o WHERE o.status = 'revoked' AND o.updated_at >= ${since}`)
+  .get() as { n: number; amount: number };
+const awaiting = db
+  .prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(o.amount), 0) AS amount FROM orders o WHERE o.status = 'preorder'`)
+  .get() as { n: number; amount: number };
+const lifetime = period("'0000'", "datetime('now', '+1 day')");
+
+const insights = [
+  { label: "First-time buyers", value: String(newBuyers), note: `${Math.max(returning, 0)} returning` },
+  { label: "New sign-ins", value: String(signups), note: "accounts created" },
+  { label: "Free claims", value: String(freeClaims), note: "$0 packs + 100% codes" },
+  {
+    label: "Repeat customers",
+    value: payingEver ? `${Math.round((repeatRate / payingEver) * 100)}%` : "—",
+    note: `${repeatRate} of ${payingEver} paying, all time`,
+  },
+  { label: "Pre-orders waiting", value: money(awaiting.amount), note: `${awaiting.n} order${awaiting.n === 1 ? "" : "s"} until release` },
+  { label: "Revoked", value: String(revoked.n), note: `${money(revoked.amount)} not counted above` },
+];
+---
+
+<AdminLayout section="analytics" title="Analytics">
+  <div class="admin-section-header an-header">
+    <h1>Analytics</h1>
+    {/* not a <nav>: the site header styles bare nav elements and it got yanked to the top of the page */}
+    <div class="an-range" role="navigation" aria-label="Date range">
+      {
+        (Object.entries(RANGES) as [Range, string][]).map(([key, label]) => (
+          <a href={`?range=${key}`} aria-current={key === range ? "page" : undefined}>
+            {label}
+          </a>
+        ))
+      }
+    </div>
+  </div>
+
+  <div class="an-tiles">
+    {
+      tiles.map((t) => (
+        <div class="an-tile">
+          <span class="an-tile-label">{t.label}</span>
+          <strong>{t.value}</strong>
+          <span class="an-tile-foot">
+            {t.d && (
+              <span class={t.d.up ? "an-up" : "an-down"}>
+                {t.d.up ? "▲" : "▼"} {t.d.text}
+              </span>
+            )}
+            {t.d && " vs previous"}
+            {!t.d && t.sub}
+            {t.d && t.sub && <> · {t.sub}</>}
+          </span>
+        </div>
+      ))
+    }
+  </div>
+  <p class="an-lifetime">
+    Lifetime: {money(lifetime.revenue)} from {lifetime.buyers} customer{lifetime.buyers === 1 ? "" : "s"} across {lifetime.checkouts} order{lifetime.checkouts === 1 ? "" : "s"}.
+  </p>
+
+  <section class="admin-card an-chart-card" aria-labelledby="an-chart-title">
+    <h2 id="an-chart-title">Revenue {monthly ? "by month" : "by day"}</h2>
+    {
+      cur.revenue === 0 ? (
+        <p class="admin-empty">No sales in this range yet.</p>
+      ) : (
+        <>
+          <div class="an-chart" style={`--cols:${buckets.length}`}>
+            <div class="an-grid" aria-hidden="true">
+              {ticks.map((t) => (
+                <div class="an-gridline" style={`bottom:${(t / top) * 100}%`}>
+                  <span>{money(t).replace(/\.00$/, "")}</span>
+                </div>
+              ))}
+            </div>
+            <div class="an-bars">
+              {buckets.map((b, i) => (
+                <div
+                  class="an-col"
+                  tabindex="0"
+                  aria-label={`${b.label}: ${money(b.revenue)}, ${b.orders} order${b.orders === 1 ? "" : "s"}`}
+                >
+                  <div class="an-bar" style={`height:${(b.revenue / top) * 100}%`} />
+                  <div class="an-tip" role="presentation">
+                    <strong>{money(b.revenue)}</strong>
+                    <span>
+                      {b.label} · {b.orders} order{b.orders === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  {i % labelEvery === 0 && <span class="an-xlabel">{b.label}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+          <details class="an-table-toggle">
+            <summary>Show as table</summary>
+            <table class="admin-table">
+              <thead>
+                <tr><th>{monthly ? "Month" : "Day"}</th><th>Revenue</th><th>Orders</th></tr>
+              </thead>
+              <tbody>
+                {buckets.filter((b) => b.revenue || b.orders).map((b) => (
+                  <tr><td>{b.label}</td><td>{money(b.revenue)}</td><td>{b.orders}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </details>
+        </>
+      )
+    }
+  </section>
+
+  <section aria-labelledby="an-insights-title">
+    <h2 class="an-h2" id="an-insights-title">Customer insights</h2>
+    <div class="an-insights">
+      {
+        insights.map((i) => (
+          <div class="an-insight">
+            <span class="an-tile-label">{i.label}</span>
+            <strong>{i.value}</strong>
+            <span class="an-tile-foot">{i.note}</span>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  <div class="an-tables">
+    <section aria-labelledby="an-packs-title">
+      <h2 class="an-h2" id="an-packs-title">Top packs</h2>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Pack</th><th>Sold</th><th>Revenue</th></tr></thead>
+          <tbody>
+            {topPacks.length === 0 && <tr><td colspan="3" class="admin-empty">Nothing sold in this range.</td></tr>}
+            {topPacks.map((p) => <tr><td>{p.name}</td><td>{p.units}</td><td>{money(p.revenue)}</td></tr>)}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <section aria-labelledby="an-cust-title">
+      <h2 class="an-h2" id="an-cust-title">Top customers</h2>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Customer</th><th>Orders</th><th>Spent</th></tr></thead>
+          <tbody>
+            {topCustomers.length === 0 && <tr><td colspan="3" class="admin-empty">No customers in this range.</td></tr>}
+            {topCustomers.map((c) => <tr><td title={c.discord_id}>{c.name}</td><td>{c.orders}</td><td>{money(c.spent)}</td></tr>)}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <section aria-labelledby="an-codes-title">
+      <h2 class="an-h2" id="an-codes-title">Discount codes</h2>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Code</th><th>Orders</th><th>Revenue</th></tr></thead>
+          <tbody>
+            {codes.length === 0 && <tr><td colspan="3" class="admin-empty">No codes used in this range.</td></tr>}
+            {codes.map((c) => <tr><td><code>{c.code}</code></td><td>{c.uses}</td><td>{money(c.revenue)}</td></tr>)}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</AdminLayout>
