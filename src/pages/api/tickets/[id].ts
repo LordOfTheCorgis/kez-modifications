@@ -12,12 +12,12 @@ export const GET: APIRoute = ({ params, url, locals }) => {
   const after = Number(url.searchParams.get("after") ?? 0) || 0;
   const messages = db
     .prepare(
-      `SELECT m.id, m.body, m.is_staff, m.created_at, COALESCE(u.name, 'deleted user') AS author, u.image
+      `SELECT m.id, m.body, m.is_staff, m.created_at, COALESCE(u.name, 'deleted user') AS author
        FROM ticket_messages m LEFT JOIN users u ON u.id = m.user_id
        WHERE m.ticket_id = ? AND m.id > ? ORDER BY m.id`,
     )
     .all(ticket.id, after);
-  return json({ status: ticket.status, awaiting: ticket.awaiting, messages });
+  return json({ status: ticket.status, messages });
 };
 
 /** Reply. Replying to a closed ticket reopens it, same as every helpdesk. */
