@@ -109,8 +109,18 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
 
   // Free lines never touch Stripe. Deliver them now and carry on with whatever
   // costs money. A $0 line in a Stripe session is legal but pointless.
-  const freePacks = wanted.filter((p) => applyDiscount(p.price, discount) === 0);
+  // a revoked free pack would otherwise come straight back on the next click. paid ones
+  // can be re-bought, they cost money again so that's fine
+  const wasRevoked = db.prepare("SELECT 1 FROM orders WHERE user_id = ? AND pack_id = ? AND status = 'revoked'");
+  const freePacks = wanted.filter((p) => {
+    if (applyDiscount(p.price, discount) !== 0) return false;
+    if (!wasRevoked.get(user.id, p.id)) return true;
+    skipped.push(p.name);
+    return false;
+  });
   const paidPacks = wanted.filter((p) => applyDiscount(p.price, discount) > 0);
+  if (!freePacks.length && !paidPacks.length)
+    return json({ error: "Staff removed your access to this. Open a support ticket if that's a mistake.", skipped }, 403);
   if (freePacks.length) {
     const claimed: string[] = [];
     for (const pack of freePacks) {
