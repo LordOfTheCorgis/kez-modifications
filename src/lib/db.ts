@@ -283,15 +283,6 @@ export interface TicketRow {
   updated_at: string;
 }
 
-export interface TicketMessageRow {
-  id: number;
-  ticket_id: number;
-  user_id: number | null;
-  is_staff: number;
-  body: string;
-  created_at: string;
-}
-
 export interface ReviewRow {
   id: number;
   user_id: number;
