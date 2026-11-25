@@ -47,15 +47,23 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (!pack) return json({ error: "Pack not found" }, 404);
   if (hasPaidOrder(user.id, pack.id)) return json({ error: "They already own this" }, 409);
 
-  let note = `granted by ${locals.user!.name}`;
+  // row first, role second: the await on Discord used to leave a gap where a
+  // double click got two paid orders
+  const base = `granted by ${locals.user!.name}`;
+  const orderId = Number(
+    db
+      .prepare(
+        `INSERT INTO orders (user_id, pack_id, status, amount, delivery_note)
+         VALUES (?, ?, 'paid', 0, ?)`,
+      )
+      .run(user.id, pack.id, base).lastInsertRowid,
+  );
+  let note = base;
   if (pack.discord_role_id) {
     const res = await assignRole(discordId, pack.discord_role_id);
     note += res.ok ? ", role assigned" : `, role assignment failed: ${res.note}`;
+    db.prepare("UPDATE orders SET delivery_note = ? WHERE id = ?").run(note, orderId);
   }
-  db.prepare(
-    `INSERT INTO orders (user_id, pack_id, status, amount, delivery_note)
-     VALUES (?, ?, 'paid', 0, ?)`,
-  ).run(user.id, pack.id, note);
   db.prepare("UPDATE users SET role = 'customer' WHERE id = ? AND role = 'member'").run(user.id);
   await logToDiscord(
     `:gift: **${locals.user!.name}** granted **${pack.name}** to **${user.name}** (${discordId}) — ${note}`,

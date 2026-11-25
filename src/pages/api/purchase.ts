@@ -123,24 +123,36 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
     return json({ error: "Staff removed your access to this. Open a support ticket if that's a mistake.", skipped }, 403);
   if (freePacks.length) {
     const claimed: string[] = [];
+    // every row goes in before the first await. The ownership re-check above and
+    // these inserts are all sync, so a double click can't slip a second copy in
+    // while we sit waiting on Discord
+    const insFree = db.prepare(
+      `INSERT INTO orders (user_id, pack_id, status, amount, discount_code, delivery_note, tos_accepted_at)
+       VALUES (?, ?, ?, 0, ?, ?, datetime('now'))`,
+    );
+    const toGrant: { pack: PackRow; orderId: number }[] = [];
     for (const pack of freePacks) {
       if (pack.status === "preorder") {
-        db.prepare(
-          `INSERT INTO orders (user_id, pack_id, status, amount, discount_code, delivery_note, tos_accepted_at)
-           VALUES (?, ?, 'preorder', 0, ?, 'pre-order, delivers on release', datetime('now'))`,
-        ).run(user.id, pack.id, discount?.code ?? null);
+        insFree.run(user.id, pack.id, "preorder", discount?.code ?? null, "pre-order, delivers on release");
         claimed.push(`**${pack.name}** (pre-order)`);
         continue;
       }
+      const info = insFree.run(user.id, pack.id, "paid", discount?.code ?? null, "no discord role configured");
+      toGrant.push({ pack, orderId: Number(info.lastInsertRowid) });
+    }
+    for (const { pack, orderId } of toGrant) {
       let note = "no discord role configured";
       if (pack.discord_role_id) {
         const res = await assignRole(user.discordId, pack.discord_role_id);
         note = res.ok ? "role assigned" : `role assignment failed: ${res.note}`;
+        // same alert paid orders get, otherwise this person sits there roleless and nobody knows
+        if (!res.ok) {
+          await logToDiscord(
+            `:rotating_light: Free claim, role NOT delivered: **${user.name}** (${user.discordId}) claimed **${pack.name}**, order #${orderId}. ${res.note}. Fix the cause, then Admin → Orders → Retry role.`,
+          );
+        }
       }
-      db.prepare(
-        `INSERT INTO orders (user_id, pack_id, status, amount, discount_code, delivery_note, tos_accepted_at)
-         VALUES (?, ?, 'paid', 0, ?, ?, datetime('now'))`,
-      ).run(user.id, pack.id, discount?.code ?? null, note);
+      db.prepare("UPDATE orders SET delivery_note = ? WHERE id = ?").run(note, orderId);
       claimed.push(`**${pack.name}** (${note})`);
     }
     db.prepare("UPDATE users SET role = 'customer' WHERE id = ? AND role = 'member'").run(user.id);
