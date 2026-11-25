@@ -20,7 +20,8 @@ const SYNONYMS: Record<string, UrgencyKey> = {
  */
 export function normalizeUrgency(raw: unknown): UrgencyKey {
   const first = String(raw ?? "").split(",")[0].trim().toLowerCase();
-  return SYNONYMS[first] ?? "normal";
+  // hasOwn, or "constructor" and "toString" come back as functions off the prototype
+  return Object.hasOwn(SYNONYMS, first) ? SYNONYMS[first] : "normal";
 }
 
 /** Rewrites any stored urgency that isn't one of the four. Safe to run on every boot. */
