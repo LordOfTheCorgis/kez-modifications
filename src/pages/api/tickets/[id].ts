@@ -2,6 +2,16 @@ import type { APIRoute } from "astro";
 import { db } from "../../../lib/db";
 import { json } from "../../../lib/admin";
 import { rateLimit } from "../../../lib/ratelimit";
+import { tooLarge } from "../../../lib/uploads";
+import {
+  attachmentsFor,
+  checkAttachments,
+  insertAttachments,
+  MAX_TICKET_REQUEST_BYTES,
+  readTicketForm,
+  removeStoredFiles,
+  saveAttachmentFiles,
+} from "../../../lib/ticket-files";
 import { getTicket, MAX_TICKET_BODY, notifyTicket, ticketAccess } from "../../../lib/tickets";
 
 /** Poll for new messages. ?after=<last message id the page has>. */
@@ -16,8 +26,12 @@ export const GET: APIRoute = ({ params, url, locals }) => {
        FROM ticket_messages m LEFT JOIN users u ON u.id = m.user_id
        WHERE m.ticket_id = ? AND m.id > ? ORDER BY m.id`,
     )
-    .all(ticket.id, after);
-  return json({ status: ticket.status, messages });
+    .all(ticket.id, after) as { id: number; body: string; is_staff: number; created_at: string; author: string }[];
+  const files = attachmentsFor(messages.map((m) => m.id));
+  return json({
+    status: ticket.status,
+    messages: messages.map((m) => ({ ...m, attachments: files.get(m.id) ?? [] })),
+  });
 };
 
 /** Reply. Replying to a closed ticket reopens it, same as every helpdesk. */
@@ -30,21 +44,31 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   if (!access.reply) return json({ error: "You have view-only access to support" }, 403);
   if (!rateLimit(`ticket-reply:${user.id}`, 20, 60_000)) return json({ error: "Slow down a little" }, 429);
 
-  const b = (await request.json().catch(() => null)) as { body?: unknown } | null;
-  const body = typeof b?.body === "string" ? b.body.trim() : "";
+  if (tooLarge(request, MAX_TICKET_REQUEST_BYTES)) return json({ error: "Attachments are too big (5 MB each, 3 per message)" }, 413);
+  const input = await readTicketForm(request);
+  const body = typeof input?.fields.body === "string" ? input.fields.body.trim() : "";
   if (!body || body.length > MAX_TICKET_BODY) return json({ error: `Message needs 1 to ${MAX_TICKET_BODY} characters` }, 400);
+  const files = await checkAttachments(input?.files ?? []);
+  if ("error" in files) return json({ error: files.error }, 400);
+  if (files.ok.length && !rateLimit(`ticket-files:${user.id}`, 10, 10 * 60_000)) {
+    return json({ error: "Too many uploads, try again in a few minutes" }, 429);
+  }
 
-  db.transaction(() => {
-    db.prepare("INSERT INTO ticket_messages (ticket_id, user_id, is_staff, body) VALUES (?, ?, ?, ?)").run(
-      ticket.id,
-      user.id,
-      access.staff ? 1 : 0,
-      body,
-    );
-    db.prepare(
-      "UPDATE tickets SET status = 'open', awaiting = ?, updated_at = datetime('now') WHERE id = ?",
-    ).run(access.staff ? "customer" : "staff", ticket.id);
-  })();
+  const saved = await saveAttachmentFiles(files.ok);
+  try {
+    db.transaction(() => {
+      const m = db
+        .prepare("INSERT INTO ticket_messages (ticket_id, user_id, is_staff, body) VALUES (?, ?, ?, ?)")
+        .run(ticket.id, user.id, access.staff ? 1 : 0, body);
+      insertAttachments(ticket.id, Number(m.lastInsertRowid), saved);
+      db.prepare(
+        "UPDATE tickets SET status = 'open', awaiting = ?, updated_at = datetime('now') WHERE id = ?",
+      ).run(access.staff ? "customer" : "staff", ticket.id);
+    })();
+  } catch (err) {
+    removeStoredFiles(saved.map((f) => f.stored));
+    throw err;
+  }
 
   // staff replies don't ping anywhere: the customer sees it live or next time they check /account
   if (!access.staff) await notifyTicket(ticket, `${user.name} (${user.discordId})`, "reply", body);

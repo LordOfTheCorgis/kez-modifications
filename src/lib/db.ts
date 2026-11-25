@@ -6,8 +6,11 @@ import { migrateTicketUrgency } from "./urgency";
 export const DATA_DIR = path.resolve(process.env.DATA_DIR ?? "./data");
 export const PRIVATE_FILES_DIR = path.join(DATA_DIR, "files");
 export const PUBLIC_UPLOADS_DIR = path.join(DATA_DIR, "uploads");
+// NOT under uploads/: that folder is served to anyone by /uploads/[...path], and
+// ticket screenshots can show order ids, emails, whatever. only /api/ticket-files reads this
+export const TICKET_FILES_DIR = path.join(DATA_DIR, "ticket-files");
 
-for (const dir of [DATA_DIR, PRIVATE_FILES_DIR, PUBLIC_UPLOADS_DIR]) {
+for (const dir of [DATA_DIR, PRIVATE_FILES_DIR, PUBLIC_UPLOADS_DIR, TICKET_FILES_DIR]) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
@@ -160,6 +163,20 @@ CREATE TABLE IF NOT EXISTS ticket_messages (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket ON ticket_messages(ticket_id);`);
+// image attachments on ticket messages. stored_name is the random on-disk name,
+// original_name is only ever displayed (and goes in transcripts), never used as a path
+db.exec(`CREATE TABLE IF NOT EXISTS ticket_attachments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+  message_id INTEGER NOT NULL REFERENCES ticket_messages(id) ON DELETE CASCADE,
+  stored_name TEXT NOT NULL UNIQUE,
+  original_name TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ticket_attachments_message ON ticket_attachments(message_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket ON ticket_attachments(ticket_id);`);
 // urgency used to carry a description ("High, blocking me"), now it's just four words.
 // anything stored outside those four gets mapped to the nearest one, every boot, cheap
 migrateTicketUrgency(db);
@@ -285,6 +302,17 @@ export interface TicketRow {
   awaiting: "staff" | "customer";
   created_at: string;
   updated_at: string;
+}
+
+export interface TicketAttachmentRow {
+  id: number;
+  ticket_id: number;
+  message_id: number;
+  stored_name: string;
+  original_name: string;
+  mime: string;
+  size: number;
+  created_at: string;
 }
 
 export interface ReviewRow {
