@@ -75,12 +75,18 @@ with anything past the newest three folded under "Older versions".
 
 ## Support tickets
 
-`/support` offers Discord or an on-site ticket (category, urgency, optional
-linked order). Customers still sign in with Discord but don't need to be in the
+`/support` offers Discord or an on-site ticket (category, urgency of Low,
+Normal, High or Urgent, optional linked order, up to 3 PNG/JPG/WebP images of
+5 MB each). Customers still sign in with Discord but don't need to be in the
 server. Threads at `/support/:id` are shared by customer and staff and poll
 every 10s while the tab is visible. Replying reopens a closed ticket. Staff
 work from Admin → Support (sorted by urgency, "Needs a reply" by default);
-customers see their tickets on `/account`. Limits: 5 open tickets per person,
+customers see their tickets on `/account` (Tickets tab for open ones, Old
+Tickets for closed ones, each with a plain text transcript download). Images
+live in `DATA_DIR/ticket-files`, checked by magic bytes, and are only served
+through `/api/ticket-files/:id` to the ticket's owner or staff with Support
+access. Staff with Support edit can permanently delete a ticket and its images
+from the inbox; customers can only close. Limits: 5 open tickets per person,
 5 new tickets an hour. Staff replies don't notify the customer anywhere yet.
 
 ## Analytics
