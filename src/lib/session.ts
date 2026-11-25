@@ -21,6 +21,14 @@ export function createSession(userId: number): { token: string; expiresAt: Date 
   return { token, expiresAt };
 }
 
+/**
+ * Post-login redirect target. Browsers treat "\" like "/", so "/\evil.com"
+ * becomes "//evil.com" and leaves the site. Only a single leading slash passes.
+ */
+export function safeNext(next: string | null | undefined): string {
+  return next && /^\/(?![\/\\])/.test(next) ? next : "/";
+}
+
 export function resolveSession(token: string): UserRow | null {
   const row = db
     .prepare(

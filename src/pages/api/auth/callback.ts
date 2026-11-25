@@ -3,7 +3,7 @@ import { db } from "../../../lib/db";
 import type { UserRow } from "../../../lib/db";
 import { exchangeCode, fetchDiscordUser } from "../../../lib/discord";
 import { getSiteUrl } from "../../../lib/settings";
-import { createSession, SESSION_COOKIE } from "../../../lib/session";
+import { createSession, safeNext, SESSION_COOKIE } from "../../../lib/session";
 import { rateLimit } from "../../../lib/ratelimit";
 import { logToDiscord } from "../../../lib/notify";
 
@@ -62,10 +62,7 @@ export const GET: APIRoute = async ({ cookies, url, clientAddress }) => {
     expires: expiresAt,
   });
 
-  const next = cookies.get("kez_oauth_next")?.value ?? "/";
+  const next = safeNext(cookies.get("kez_oauth_next")?.value);
   cookies.delete("kez_oauth_next", { path: "/" });
-  return new Response(null, {
-    status: 302,
-    headers: { Location: next.startsWith("/") && !next.startsWith("//") ? next : "/" },
-  });
+  return new Response(null, { status: 302, headers: { Location: next } });
 };

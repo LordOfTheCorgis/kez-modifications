@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { buildAuthorizeUrl } from "../../../lib/discord";
 import { getSiteUrl } from "../../../lib/settings";
 import { rateLimit } from "../../../lib/ratelimit";
+import { safeNext } from "../../../lib/session";
 
 export const GET: APIRoute = ({ cookies, url, clientAddress }) => {
   let ip = "unknown";
@@ -24,8 +25,7 @@ export const GET: APIRoute = ({ cookies, url, clientAddress }) => {
     maxAge: 600,
   });
 
-  const next = url.searchParams.get("next") ?? "/";
-  cookies.set("kez_oauth_next", next.startsWith("/") && !next.startsWith("//") ? next : "/", {
+  cookies.set("kez_oauth_next", safeNext(url.searchParams.get("next")), {
     path: "/",
     httpOnly: true,
     sameSite: "lax",
