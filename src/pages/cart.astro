@@ -51,7 +51,7 @@ const canceled = Astro.url.searchParams.get("canceled") === "1";
                 </div>
                 <div class="cart-price">{owned ? "Owned" : unavailable ? "Unavailable" : fmt(pack.price)}</div>
                 <button class="cart-remove" data-remove={pack.id} aria-label={`Remove ${pack.name} from cart`}>
-                  ×
+                  Remove
                 </button>
               </div>
             ))}
