@@ -159,10 +159,6 @@ nav {
     gap: 0.75rem;
     padding: 0 1rem;
   }
-  .nav-user,
-  .nav-inner > .btn {
-    margin-left: auto;
-  }
   .nav-links {
     display: none;
     position: absolute;

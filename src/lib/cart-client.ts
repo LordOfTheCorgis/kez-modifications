@@ -20,6 +20,9 @@ function write(ids: number[]) {
     el.textContent = String(ids.length);
     el.hidden = ids.length === 0;
   });
+  document.querySelectorAll<HTMLElement>("[data-cart-link]").forEach((el) => {
+    el.setAttribute("aria-label", ids.length ? `Cart, ${ids.length} ${ids.length === 1 ? "item" : "items"}` : "Cart");
+  });
 }
 
 export const cart = {

@@ -58,7 +58,8 @@ const contactEmail = getSetting("contact_email");
           <li>
             <a href="/support" class={`nav-link ${active === "support" ? "active" : ""}`}>Support</a>
           </li>
-          <li>
+          {/* the header icon is hidden on phones, so the hamburger keeps a labeled Cart row */}
+          <li class="nav-mobile-only">
             <a href="/cart" class={`nav-link nav-cart ${active === "cart" ? "active" : ""}`}>
               Cart
               <span class="nav-cart-count" data-cart-count hidden={cartCount === 0}>{cartCount}</span>
@@ -80,7 +81,7 @@ const contactEmail = getSetting("contact_email");
                   <a href="/account" class={`nav-link ${active === "account" ? "active" : ""}`}>My Account</a>
                 </li>
                 <li class="nav-mobile-only">
-                  <a href="/account#packs" class="nav-link">Downloads</a>
+                  <a href="/account?tab=downloads" class="nav-link">Downloads</a>
                 </li>
                 <li class="nav-mobile-only">
                   <form method="post" action="/api/auth/logout">
@@ -91,30 +92,46 @@ const contactEmail = getSetting("contact_email");
             )
           }
         </ul>
-        {
-          user ? (
-            <details class="nav-user" id="nav-user">
-              <summary aria-label={`Account menu for ${user.name}`} title={user.name}>
-                {user.image ? (
-                  <img src={user.image} alt="" class="nav-avatar" />
-                ) : (
-                  <span class="nav-avatar nav-avatar-fallback">{user.name.slice(0, 1).toUpperCase()}</span>
-                )}
-                <svg class="nav-user-caret" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" /></svg>
-              </summary>
-              <div class="nav-menu">
-                <div class="nav-menu-name">{user.name}</div>
-                <a href="/account" class="nav-menu-item">My Account</a>
-                <a href="/account#packs" class="nav-menu-item">Downloads</a>
-                <form method="post" action="/api/auth/logout">
-                  <button type="submit" class="nav-menu-item">Log out</button>
-                </form>
-              </div>
-            </details>
-          ) : (
-            <a href="/api/auth/login" class="btn btn-primary btn-sm">Sign in</a>
-          )
-        }
+        <div class="nav-actions">
+          <a
+            href="/cart"
+            class="nav-cart-icon"
+            data-cart-link
+            aria-label={cartCount > 0 ? `Cart, ${cartCount} ${cartCount === 1 ? "item" : "items"}` : "Cart"}
+            aria-current={active === "cart" ? "page" : undefined}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 4h2.2l2.1 10.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L20.4 8H6.1" />
+              <circle cx="9.5" cy="19.5" r="1.3" />
+              <circle cx="17" cy="19.5" r="1.3" />
+            </svg>
+            <span class="nav-cart-count" data-cart-count hidden={cartCount === 0}>{cartCount}</span>
+          </a>
+          {
+            user ? (
+              <details class="nav-user" id="nav-user">
+                <summary aria-label={`Account menu for ${user.name}`}>
+                  {user.image ? (
+                    <img src={user.image} alt="" class="nav-avatar" />
+                  ) : (
+                    <span class="nav-avatar nav-avatar-fallback">{user.name.slice(0, 1).toUpperCase()}</span>
+                  )}
+                  <span class="nav-user-name">{user.name}</span>
+                  <svg class="nav-user-caret" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" /></svg>
+                </summary>
+                <div class="nav-menu">
+                  <a href="/account" class="nav-menu-item">My Account</a>
+                  <a href="/account?tab=downloads" class="nav-menu-item">Downloads</a>
+                  <form method="post" action="/api/auth/logout">
+                    <button type="submit" class="nav-menu-item">Log out</button>
+                  </form>
+                </div>
+              </details>
+            ) : (
+              <a href="/api/auth/login" class="btn btn-primary btn-sm">Sign in</a>
+            )
+          }
+        </div>
         <button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="nav-links" aria-label="Menu">
           <span></span><span></span><span></span>
         </button>
@@ -184,7 +201,7 @@ const contactEmail = getSetting("contact_email");
             )}
             <a href="/support" class="footer-link">Open a support ticket</a>
             <a href="/commissions" class="footer-link">Request a commission</a>
-            <a href="/account" class="footer-link">Downloads</a>
+            <a href="/account?tab=downloads" class="footer-link">Downloads</a>
           </div>
 
           <div class="footer-col" role="navigation" aria-labelledby="footer-legal">
