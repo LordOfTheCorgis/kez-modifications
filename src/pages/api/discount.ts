@@ -3,9 +3,7 @@ import { db } from "../../lib/db";
 import type { PackRow } from "../../lib/db";
 import { applyDiscount, validateDiscount } from "../../lib/discounts";
 import { rateLimit } from "../../lib/ratelimit";
-
-const json = (data: unknown, status = 200) =>
-  new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
+import { json } from "../../lib/admin";
 
 /**
  * Cart "Apply" button. Preview only: purchase.ts re-validates the code and

@@ -9,31 +9,21 @@ import { hasBought } from "../../lib/ownership";
 import { fulfillCheckoutSession } from "../../lib/fulfillment";
 import { logToDiscord } from "../../lib/notify";
 import { rateLimit } from "../../lib/ratelimit";
-
-const MAX_CART_ITEMS = 20;
-
-const json = (data: unknown, status = 200) =>
-  new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
+import { json } from "../../lib/admin";
+import { MAX_CART_ITEMS } from "../../lib/cart";
 
 /**
- * Takes { packIds: [] } from the cart ({ packId } still works, nothing sends it anymore). Always
+ * Takes { packIds: [] } from the cart. Always
  * recomputes prices server-side. Packs the buyer already owns get dropped and
  * reported back as `skipped` instead of failing the whole checkout.
  */
 export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
-  let ip = "unknown";
-  try {
-    ip = clientAddress;
-  } catch {
-    /* ignore */
-  }
-  if (!rateLimit(`purchase:${ip}`, 15, 60_000)) return json({ error: "Too many requests" }, 429);
+  if (!rateLimit(`purchase:${clientAddress}`, 15, 60_000)) return json({ error: "Too many requests" }, 429);
 
   const user = locals.user;
   if (!user?.discordId) return json({ error: "Sign in with Discord first" }, 401);
 
   const body = (await request.json().catch(() => null)) as {
-    packId?: unknown;
     packIds?: unknown;
     discountCode?: unknown;
     tosAccepted?: unknown;
@@ -41,9 +31,9 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
   // stored on every order row: it's the thing Stripe asks for when someone disputes a charge
   if (body?.tosAccepted !== true) return json({ error: "Accept the Terms of Service to check out" }, 400);
 
-  const rawIds = Array.isArray(body?.packIds) ? body.packIds : [body?.packId];
+  const rawIds = Array.isArray(body?.packIds) ? body.packIds : [];
   const packIds = [...new Set(rawIds.map(Number).filter((n) => Number.isInteger(n) && n > 0))];
-  if (!packIds.length) return json({ error: "packId required" }, 400);
+  if (!packIds.length) return json({ error: "packIds required" }, 400);
   if (packIds.length > MAX_CART_ITEMS) return json({ error: `Max ${MAX_CART_ITEMS} items per checkout` }, 400);
 
   const packs = packIds

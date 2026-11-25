@@ -8,12 +8,6 @@ export interface RoleResult {
   note: string;
 }
 
-export interface GuildMember {
-  roles: string[];
-  nick: string | null;
-  avatar: string | null;
-}
-
 export interface GuildRole {
   id: string;
   name: string;
@@ -64,22 +58,6 @@ export function assignRole(discordId: string, roleId: string): Promise<RoleResul
 
 export function removeRole(discordId: string, roleId: string): Promise<RoleResult> {
   return roleRequest("DELETE", discordId, roleId);
-}
-
-export async function getGuildMember(discordId: string): Promise<GuildMember | null> {
-  const token = botToken();
-  const guild = guildId();
-  if (!token || !guild) return null;
-  try {
-    const res = await fetch(`${API}/guilds/${guild}/members/${discordId}`, {
-      headers: { Authorization: `Bot ${token}` },
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { roles?: string[]; nick?: string; avatar?: string };
-    return { roles: data.roles ?? [], nick: data.nick ?? null, avatar: data.avatar ?? null };
-  } catch {
-    return null;
-  }
 }
 
 /** Live guild role list for the admin role picker. */

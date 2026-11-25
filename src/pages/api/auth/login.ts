@@ -6,13 +6,7 @@ import { rateLimit } from "../../../lib/ratelimit";
 import { safeNext } from "../../../lib/session";
 
 export const GET: APIRoute = ({ cookies, url, clientAddress }) => {
-  let ip = "unknown";
-  try {
-    ip = clientAddress;
-  } catch {
-    /* not available behind some setups */
-  }
-  if (!rateLimit(`auth:${ip}`, 10, 60_000)) {
+  if (!rateLimit(`auth:${clientAddress}`, 10, 60_000)) {
     return new Response("Too many requests", { status: 429 });
   }
 

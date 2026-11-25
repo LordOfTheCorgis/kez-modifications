@@ -8,13 +8,7 @@ import { rateLimit } from "../../../lib/ratelimit";
 import { logToDiscord } from "../../../lib/notify";
 
 export const GET: APIRoute = async ({ cookies, url, clientAddress }) => {
-  let ip = "unknown";
-  try {
-    ip = clientAddress;
-  } catch {
-    /* ignore */
-  }
-  if (!rateLimit(`auth:${ip}`, 10, 60_000)) {
+  if (!rateLimit(`auth:${clientAddress}`, 10, 60_000)) {
     return new Response("Too many requests", { status: 429 });
   }
 
