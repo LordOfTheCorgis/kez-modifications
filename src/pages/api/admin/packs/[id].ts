@@ -63,6 +63,15 @@ export const DELETE: APIRoute = ({ params, locals }) => {
   const pack = getPack(params.id);
   if (!pack) return json({ error: "Not found" }, 404);
 
+  // the orders delete below is a cascade, so this used to wipe every sale of the
+  // pack (dispute trail, analytics) and strand anyone mid-checkout. Hidden does the same job
+  const sold = db
+    .prepare("SELECT COUNT(*) AS n FROM orders WHERE pack_id = ? AND status IN ('paid', 'preorder', 'revoked')")
+    .get(pack.id) as { n: number };
+  if (sold.n > 0) {
+    return json({ error: `${pack.name} has ${sold.n} order${sold.n === 1 ? "" : "s"} on record. Set it to Hidden instead of deleting.` }, 409);
+  }
+
   const images = db
     .prepare("SELECT * FROM pack_images WHERE pack_id = ?")
     .all(pack.id) as PackImageRow[];

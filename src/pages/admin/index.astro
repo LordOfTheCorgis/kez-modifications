@@ -334,7 +334,7 @@ const categories = db
       delBtn.className = "admin-del-btn";
       delBtn.textContent = "Delete";
       delBtn.addEventListener("click", async () => {
-        if (!confirm(`Delete "${p.name}"? This removes its files, orders, and logs.`)) return;
+        if (!confirm(`Delete "${p.name}"? This removes its files and images. Packs that have been sold can't be deleted, set them to Hidden.`)) return;
         try {
           await api(`/api/admin/packs/${p.id}`, "DELETE");
           await load();
