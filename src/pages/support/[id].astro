@@ -2,6 +2,8 @@
 import Layout from "../../layouts/Layout.astro";
 import Breadcrumb from "../../components/Breadcrumb.astro";
 import { db } from "../../lib/db";
+import { attachmentsFor } from "../../lib/ticket-files";
+import { ATTACHMENT_ACCEPT } from "../../lib/ticket-limits";
 import { getTicket, ticketAccess, TICKET_CATEGORIES, TICKET_URGENCIES, MAX_TICKET_BODY } from "../../lib/tickets";
 import type { TicketCategory, TicketUrgency } from "../../lib/tickets";
 
@@ -26,6 +28,7 @@ const order = ticket.order_id
       .prepare("SELECT o.id, o.status, o.amount, p.name FROM orders o LEFT JOIN packs p ON p.id = o.pack_id WHERE o.id = ?")
       .get(ticket.order_id) as { id: number; status: string; amount: number | null; name: string | null } | undefined)
   : undefined;
+const files = attachmentsFor(messages.map((m) => m.id));
 const lastId = messages.at(-1)?.id ?? 0;
 ---
 
@@ -76,6 +79,17 @@ const lastId = messages.at(-1)?.id ?? 0;
               <time datetime={`${m.created_at}Z`} data-local>{m.created_at}</time>
             </div>
             <p class="ticket-msg-body">{m.body}</p>
+            {files.get(m.id)?.length ? (
+              <ul class="ticket-atts">
+                {files.get(m.id)!.map((a) => (
+                  <li>
+                    <button type="button" class="ticket-thumb" data-full={a.url} data-name={a.name} aria-label={`View ${a.name} larger`}>
+                      <img src={a.url} alt={a.name} loading="lazy" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </li>
         ))
       }
@@ -93,6 +107,10 @@ const lastId = messages.at(-1)?.id ?? 0;
             maxlength={MAX_TICKET_BODY}
             placeholder={ticket.status === "closed" ? "Replying reopens this ticket." : "Write a reply…"}
           ></textarea>
+          <div class="ticket-attach">
+            <label for="reply-files">Attach images <span class="label-hint">optional, PNG, JPG or WebP, 5 MB each, up to 3</span></label>
+            <input type="file" id="reply-files" class="file-input" accept={ATTACHMENT_ACCEPT} multiple />
+          </div>
           <div class="error-note" id="reply-error" role="alert" />
           <div class="ticket-reply-actions">
             {ticket.status === "open" ? (
@@ -115,9 +133,16 @@ const lastId = messages.at(-1)?.id ?? 0;
       )
     }
   </div>
+
+  <dialog id="lightbox" class="lightbox" aria-label="Image preview">
+    <img id="lightbox-img" alt="" />
+    <button type="button" class="btn btn-ghost btn-sm lightbox-close" id="lightbox-close">Close</button>
+  </dialog>
 </Layout>
 
 <script>
+  import { attachmentProblem } from "../../lib/ticket-limits";
+
   const fmt = (iso: string) =>
     new Date(iso.replace(" ", "T")).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
   document.querySelectorAll<HTMLTimeElement>("time[data-local]").forEach((t) => (t.textContent = fmt(t.dateTime)));
@@ -125,7 +150,8 @@ const lastId = messages.at(-1)?.id ?? 0;
   const thread = document.getElementById("thread")!;
   const id = thread.dataset.ticket;
   let last = Number(thread.dataset.last);
-  type Msg = { id: number; body: string; is_staff: number; created_at: string; author: string };
+  type Att = { id: number; name: string; url: string };
+  type Msg = { id: number; body: string; is_staff: number; created_at: string; author: string; attachments?: Att[] };
 
   function append(m: Msg) {
     const li = document.createElement("li");
@@ -149,8 +175,46 @@ const lastId = messages.at(-1)?.id ?? 0;
     body.className = "ticket-msg-body";
     body.textContent = m.body;
     li.append(head, body);
+    if (m.attachments?.length) {
+      const list = document.createElement("ul");
+      list.className = "ticket-atts";
+      for (const a of m.attachments) {
+        const item = document.createElement("li");
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "ticket-thumb";
+        btn.dataset.full = a.url;
+        btn.dataset.name = a.name;
+        btn.setAttribute("aria-label", `View ${a.name} larger`);
+        const img = document.createElement("img");
+        img.src = a.url;
+        img.alt = a.name;
+        img.loading = "lazy";
+        btn.append(img);
+        item.append(btn);
+        list.append(item);
+      }
+      li.append(list);
+    }
     thread.append(li);
   }
+
+  // one lightbox for the whole thread, thumbnails (including ones polled in later) just delegate to it
+  const lightbox = document.getElementById("lightbox") as HTMLDialogElement;
+  const lightboxImg = document.getElementById("lightbox-img") as HTMLImageElement;
+  thread.addEventListener("click", (e) => {
+    const thumb = (e.target as HTMLElement).closest<HTMLElement>(".ticket-thumb");
+    if (!thumb) return;
+    lightboxImg.src = thumb.dataset.full!;
+    lightboxImg.alt = thumb.dataset.name ?? "";
+    lightbox.showModal();
+  });
+  document.getElementById("lightbox-close")!.addEventListener("click", () => lightbox.close());
+  // clicking the dark area around the image closes it, clicks on the image itself don't
+  lightbox.addEventListener("click", (e) => {
+    if (e.target === lightbox) lightbox.close();
+  });
+  lightbox.addEventListener("close", () => (lightboxImg.src = ""));
 
   let polling = false;
   async function poll() {
@@ -184,6 +248,12 @@ const lastId = messages.at(-1)?.id ?? 0;
 
   const form = document.getElementById("reply-form") as HTMLFormElement | null;
   const input = document.getElementById("reply-body") as HTMLTextAreaElement | null;
+  const fileInput = document.getElementById("reply-files") as HTMLInputElement | null;
+  fileInput?.addEventListener("change", () => {
+    const problem = attachmentProblem([...(fileInput.files ?? [])]);
+    document.getElementById("reply-error")!.textContent = problem ?? "";
+    if (problem) fileInput.value = "";
+  });
   form?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const errBox = document.getElementById("reply-error")!;
@@ -191,15 +261,16 @@ const lastId = messages.at(-1)?.id ?? 0;
     errBox.textContent = "";
     btn.disabled = true;
     try {
-      const res = await fetch(`/api/tickets/${id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: input!.value }),
-      });
+      // FormData, and no Content-Type header: the browser has to add the multipart boundary itself
+      const payload = new FormData();
+      payload.set("body", input!.value);
+      for (const f of fileInput?.files ?? []) payload.append("files", f);
+      const res = await fetch(`/api/tickets/${id}`, { method: "POST", body: payload });
       const data = await res.json().catch(() => null);
       if (!res.ok) errBox.textContent = data?.error ?? `HTTP ${res.status}`;
       else {
         input!.value = "";
+        if (fileInput) fileInput.value = "";
         // replying reopens a closed ticket and the buttons depend on that, cheap enough to just reload
         if (document.getElementById("ticket-status")!.classList.contains("is-closed")) location.reload();
         else await poll();

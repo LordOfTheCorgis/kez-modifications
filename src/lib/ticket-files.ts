@@ -5,8 +5,9 @@ import { db, TICKET_FILES_DIR } from "./db";
 import type { TicketAttachmentRow } from "./db";
 import { streamToDisk } from "./uploads";
 
-export const MAX_ATTACHMENTS = 3;
-export const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS } from "./ticket-limits";
+
+export { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS };
 /** What the request as a whole may weigh, for the early content-length refusal. */
 export const MAX_TICKET_REQUEST_BYTES = MAX_ATTACHMENTS * MAX_ATTACHMENT_BYTES;
 
