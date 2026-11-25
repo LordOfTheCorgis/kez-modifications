@@ -60,7 +60,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // badge counts the raw cookie, so people saw "1" on an empty cart
   const cartIds = readCart(cookies);
   if (cartIds.length) {
-    const alive = cartIds.filter((id) => db.prepare("SELECT 1 FROM packs WHERE id = ?").get(id));
+    const found = new Set(
+      (db.prepare(`SELECT id FROM packs WHERE id IN (${cartIds.map(() => "?").join(",")})`).all(...cartIds) as { id: number }[]).map(
+        (r) => r.id,
+      ),
+    );
+    const alive = cartIds.filter((id) => found.has(id));
     if (alive.length !== cartIds.length) {
       // same attrs cart-client.ts writes with, not httpOnly because the browser edits it
       cookies.set(CART_COOKIE, alive.join(","), {

@@ -11,6 +11,8 @@ function hashToken(token: string): string {
 
 /** Creates a session row and returns the raw (unhashed) token for the cookie. */
 export function createSession(userId: number): { token: string; expiresAt: Date } {
+  // nothing else ever cleared expired rows, so sweep on each login. tiny table, cheap
+  pruneExpiredSessions();
   const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
   db.prepare("INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)").run(

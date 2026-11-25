@@ -2,6 +2,8 @@ import type { APIRoute } from "astro";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { PRIVATE_FILES_DIR, PUBLIC_UPLOADS_DIR } from "../../../lib/db";
 import { json, requirePerm } from "../../../lib/admin";
 
@@ -19,6 +21,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const denied = requirePerm(locals, ["products", "settings"], 2);
   if (denied) return denied;
 
+  // formData() buffers the entire body, so refuse before it starts instead of
+  // finding out the file was too big after it's already eaten the RAM
+  if (Number(request.headers.get("content-length") ?? 0) > MAX_FILE_BYTES + 1024 * 1024) {
+    return json({ error: "file too large (500MB max)" }, 413);
+  }
   const form = await request.formData().catch(() => null);
   const file = form?.get("file");
   const kind = form?.get("kind") === "file" ? "file" : "image";
@@ -34,7 +41,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   const name = `${crypto.randomUUID()}${ext || ".bin"}`;
   const dir = kind === "image" ? PUBLIC_UPLOADS_DIR : PRIVATE_FILES_DIR;
-  fs.writeFileSync(path.join(dir, name), Buffer.from(await file.arrayBuffer()));
+  // stream it out, the old arrayBuffer + Buffer.from path held two more full copies
+  await pipeline(Readable.fromWeb(file.stream() as import("node:stream/web").ReadableStream), fs.createWriteStream(path.join(dir, name)));
 
   return json(kind === "image" ? { url: `/uploads/${name}` } : { file: name, originalName: file.name });
 };
