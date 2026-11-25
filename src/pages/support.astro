@@ -1,9 +1,9 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import TicketList from "../components/TicketList.astro";
 import { db } from "../lib/db";
 import { getSetting } from "../lib/settings";
 import { TICKET_CATEGORIES, TICKET_URGENCIES, MAX_TICKET_BODY } from "../lib/tickets";
+import { ATTACHMENT_ACCEPT } from "../lib/ticket-limits";
 
 const user = Astro.locals.user;
 const discordInvite = getSetting("discord_invite_url");
@@ -50,6 +50,11 @@ const orders = user
 
     <section class="support-card" id="new-ticket" aria-labelledby="new-ticket-title">
       <h2 id="new-ticket-title">New ticket</h2>
+      {user && (
+        <p class="support-note">
+          Already have one open? Your tickets live in <a href="/account?tab=tickets">Account &rsaquo; Tickets</a>.
+        </p>
+      )}
       {
         !user ? (
           <div class="support-signin">
@@ -108,6 +113,10 @@ const orders = user
                 placeholder="What happened, what you expected, and anything you've already tried."
               ></textarea>
             </div>
+            <div class="ticket-attach">
+              <label for="t-files">Attach images <span class="label-hint">optional, PNG, JPG or WebP, 5 MB each, up to 3</span></label>
+              <input type="file" id="t-files" class="file-input" accept={ATTACHMENT_ACCEPT} multiple />
+            </div>
             <div class="error-note" id="t-error" role="alert" />
             <div class="admin-form-actions">
               <button class="btn btn-primary" type="submit" id="t-submit">Open ticket</button>
@@ -117,23 +126,19 @@ const orders = user
       }
     </section>
 
-    {
-      user && (
-        <section class="support-card" aria-labelledby="my-tickets-title">
-          <h2 id="my-tickets-title">Your tickets</h2>
-          <TicketList userId={user.id} />
-        </section>
-      )
-    }
   </div>
 </Layout>
 
 <script>
-  document.querySelectorAll<HTMLTimeElement>("time[data-local]").forEach((t) => {
-    t.textContent = new Date(t.dateTime.replace(" ", "T")).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
-  });
+  import { attachmentProblem } from "../lib/ticket-limits";
 
   const form = document.getElementById("ticket-form") as HTMLFormElement | null;
+  const fileInput = document.getElementById("t-files") as HTMLInputElement | null;
+  fileInput?.addEventListener("change", () => {
+    const problem = attachmentProblem([...(fileInput.files ?? [])]);
+    document.getElementById("t-error")!.textContent = problem ?? "";
+    if (problem) fileInput.value = "";
+  });
   form?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const val = (id: string) => (document.getElementById(id) as HTMLInputElement | null)?.value ?? "";
@@ -142,17 +147,15 @@ const orders = user
     errBox.textContent = "";
     btn.disabled = true;
     try {
-      const res = await fetch("/api/tickets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subject: val("t-subject"),
-          category: val("t-category"),
-          urgency: val("t-urgency"),
-          order_id: val("t-order") || null,
-          body: val("t-body"),
-        }),
-      });
+      // multipart so images can ride along. no Content-Type header, the browser adds the boundary
+      const payload = new FormData();
+      payload.set("subject", val("t-subject"));
+      payload.set("category", val("t-category"));
+      payload.set("urgency", val("t-urgency"));
+      if (val("t-order")) payload.set("order_id", val("t-order"));
+      payload.set("body", val("t-body"));
+      for (const f of fileInput?.files ?? []) payload.append("files", f);
+      const res = await fetch("/api/tickets", { method: "POST", body: payload });
       const data = await res.json().catch(() => null);
       if (res.ok && data?.id) {
         location.href = `/support/${data.id}`;

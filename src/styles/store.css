@@ -902,6 +902,14 @@ a.support-option:hover {
   display: flex;
   margin: 0 auto;
 }
+.support-note {
+  margin: -0.5rem 0 1rem;
+  font-size: 0.8rem;
+  color: var(--muted2);
+}
+.support-note a {
+  color: var(--accent);
+}
 .ticket-attach {
   display: flex;
   flex-direction: column;
