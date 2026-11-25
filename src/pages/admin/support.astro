@@ -7,6 +7,8 @@ import type { TicketCategory, TicketUrgency } from "../../lib/tickets";
 
 if (!Astro.locals.user) return Astro.redirect("/api/auth/login?next=/admin/support");
 if (!can(Astro.locals.user, "support")) return Astro.redirect("/admin");
+// view-only staff see the inbox but not the delete button. the route checks this again
+const canDelete = can(Astro.locals.user, "support", 2);
 
 const VIEWS = {
   waiting: ["Needs a reply", "t.status = 'open' AND t.awaiting = 'staff'"],
@@ -66,13 +68,13 @@ const tickets = db
   <div class="admin-table-wrap">
     <table class="admin-table">
       <thead>
-        <tr><th>#</th><th>Subject</th><th>Customer</th><th>Category</th><th>Urgency</th><th>Status</th><th>Last activity</th></tr>
+        <tr><th>#</th><th>Subject</th><th>Customer</th><th>Category</th><th>Urgency</th><th>Status</th><th>Last activity</th>{canDelete && <th><span class="sr-only">Actions</span></th>}</tr>
       </thead>
       <tbody>
         {
           tickets.length === 0 && (
             <tr>
-              <td colspan="7" class="admin-empty">
+              <td colspan={canDelete ? 8 : 7} class="admin-empty">
                 {view === "waiting" ? "Nobody's waiting on a reply." : "No tickets here."}
               </td>
             </tr>
@@ -105,6 +107,13 @@ const tickets = db
               <td>
                 <time datetime={`${t.updated_at}Z`} data-local>{t.updated_at}</time>
               </td>
+              {canDelete && (
+                <td>
+                  <button type="button" class="admin-del-btn" data-delete={t.id} data-subject={t.subject}>
+                    Delete
+                  </button>
+                </td>
+              )}
             </tr>
           ))
         }
@@ -116,5 +125,19 @@ const tickets = db
 <script>
   document.querySelectorAll<HTMLTimeElement>("time[data-local]").forEach((t) => {
     t.textContent = new Date(t.dateTime.replace(" ", "T")).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-delete]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const subject = btn.dataset.subject ?? "";
+      if (!confirm(`Permanently delete ticket #${btn.dataset.delete} "${subject}"?\n\nThe messages and uploaded images are erased and can't be recovered.`)) return;
+      btn.disabled = true;
+      const res = await fetch(`/api/admin/tickets/${btn.dataset.delete}`, { method: "DELETE" });
+      if (res.ok) location.reload();
+      else {
+        alert((await res.json().catch(() => ({}))).error ?? `Delete failed (HTTP ${res.status})`);
+        btn.disabled = false;
+      }
+    });
   });
 </script>
