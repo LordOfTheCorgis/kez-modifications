@@ -15,10 +15,10 @@ export const TICKET_CATEGORIES = {
 export type TicketCategory = keyof typeof TICKET_CATEGORIES;
 
 export const TICKET_URGENCIES = {
-  low: "Low, whenever",
+  low: "Low",
   normal: "Normal",
-  high: "High, blocking me",
-  urgent: "Urgent, server down",
+  high: "High",
+  urgent: "Urgent",
 } as const;
 export type TicketUrgency = keyof typeof TICKET_URGENCIES;
 

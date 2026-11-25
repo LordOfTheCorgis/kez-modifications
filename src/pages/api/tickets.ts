@@ -15,8 +15,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const b = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const subject = typeof b?.subject === "string" ? b.subject.trim() : "";
   const body = typeof b?.body === "string" ? b.body.trim() : "";
-  const category = typeof b?.category === "string" && b.category in TICKET_CATEGORIES ? b.category : null;
-  const urgency = typeof b?.urgency === "string" && b.urgency in TICKET_URGENCIES ? b.urgency : null;
+  const category = typeof b?.category === "string" && Object.hasOwn(TICKET_CATEGORIES, b.category) ? b.category : null;
+  const urgency = typeof b?.urgency === "string" && Object.hasOwn(TICKET_URGENCIES, b.urgency) ? b.urgency : null;
   if (subject.length < 3 || subject.length > 120) return json({ error: "Subject needs 3 to 120 characters" }, 400);
   if (!body || body.length > MAX_TICKET_BODY) return json({ error: `Message needs 1 to ${MAX_TICKET_BODY} characters` }, 400);
   if (!category || !urgency) return json({ error: "Pick a category and urgency" }, 400);

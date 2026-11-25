@@ -91,7 +91,7 @@ const tickets = db
               <td>{t.customer}</td>
               <td>{TICKET_CATEGORIES[t.category as TicketCategory] ?? t.category}</td>
               <td>
-                <span class={`urgency urgency-${t.urgency}`}>{TICKET_URGENCIES[t.urgency as TicketUrgency]?.split(",")[0] ?? t.urgency}</span>
+                <span class={`urgency urgency-${t.urgency}`}>{TICKET_URGENCIES[t.urgency as TicketUrgency] ?? t.urgency}</span>
               </td>
               <td>
                 {t.status === "closed" ? (

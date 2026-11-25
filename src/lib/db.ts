@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
+import { migrateTicketUrgency } from "./urgency";
 
 export const DATA_DIR = path.resolve(process.env.DATA_DIR ?? "./data");
 export const PRIVATE_FILES_DIR = path.join(DATA_DIR, "files");
@@ -159,6 +160,9 @@ CREATE TABLE IF NOT EXISTS ticket_messages (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket ON ticket_messages(ticket_id);`);
+// urgency used to carry a description ("High, blocking me"), now it's just four words.
+// anything stored outside those four gets mapped to the nearest one, every boot, cheap
+migrateTicketUrgency(db);
 // null on admin grants and anything bought before the checkbox existed
 addColumn("orders", "tos_accepted_at", "TEXT");
 
