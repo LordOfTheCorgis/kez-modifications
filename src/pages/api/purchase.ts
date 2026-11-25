@@ -57,7 +57,7 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
   let discount: DiscountRow | null = null;
   const codeInput = typeof body?.discountCode === "string" ? body.discountCode.trim() : "";
   if (codeInput) {
-    discount = validateDiscount(codeInput);
+    discount = validateDiscount(codeInput, user.id);
     if (!discount) return json({ error: "Invalid or expired discount code" }, 400);
   }
 
@@ -157,6 +157,10 @@ export const POST: APIRoute = async ({ request, locals, clientAddress }) => {
     return json({ error: configError }, 503);
   }
   if (!stripe) return json({ error: "Payments are not configured yet" }, 503);
+
+  // stripe refuses any session under 50 cents, and its error reads like we broke
+  const total = paidPacks.reduce((sum, p) => sum + applyDiscount(p.price, discount), 0);
+  if (total < 50) return json({ error: "Stripe needs at least $0.50 to take a payment. Add another pack or use a smaller discount.", skipped }, 400);
 
   const site = getSiteUrl();
   const lineItems = paidPacks.map((pack) => {

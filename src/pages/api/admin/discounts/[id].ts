@@ -3,6 +3,7 @@ import { db } from "../../../../lib/db";
 import type { DiscountRow } from "../../../../lib/db";
 import { json, requirePerm } from "../../../../lib/admin";
 import { logToDiscord } from "../../../../lib/notify";
+import { parseDiscountInput } from "../../../../lib/discounts";
 
 export const PUT: APIRoute = async ({ request, params, locals }) => {
   const denied = requirePerm(locals, "discounts", 2);
@@ -13,13 +14,15 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
   if (!row) return json({ error: "Not found" }, 404);
   const b = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const isActive = b?.is_active === false ? 0 : 1;
+  const parsed = parseDiscountInput(b, row.percent);
+  if ("error" in parsed) return json({ error: parsed.error }, 400);
   db.prepare(
     "UPDATE discounts SET percent = ?, max_uses = ?, starts_at = ?, expires_at = ?, is_active = ? WHERE id = ?",
   ).run(
-    b?.percent ? Math.round(Number(b.percent)) : row.percent,
-    b?.max_uses ? Number(b.max_uses) : null,
-    typeof b?.starts_at === "string" && b.starts_at ? new Date(b.starts_at).toISOString() : null,
-    typeof b?.expires_at === "string" && b.expires_at ? new Date(b.expires_at).toISOString() : null,
+    parsed.percent,
+    parsed.maxUses,
+    parsed.startsAt,
+    parsed.expiresAt,
     isActive,
     row.id,
   );

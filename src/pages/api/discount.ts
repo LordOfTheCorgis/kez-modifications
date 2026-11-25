@@ -11,22 +11,16 @@ const json = (data: unknown, status = 200) =>
  * Cart "Apply" button. Preview only: purchase.ts re-validates the code and
  * recomputes every price, so nothing here can be trusted into a charge.
  */
-export const POST: APIRoute = async ({ request, clientAddress }) => {
-  let ip = "unknown";
-  try {
-    ip = clientAddress;
-  } catch {
-    /* ignore */
-  }
+export const POST: APIRoute = async ({ request, clientAddress, locals }) => {
   // otherwise this is a free oracle for guessing codes
-  if (!rateLimit(`discount:${ip}`, 10, 60_000)) return json({ error: "Too many tries, wait a minute" }, 429);
+  if (!rateLimit(`discount:${clientAddress}`, 10, 60_000)) return json({ error: "Too many tries, wait a minute" }, 429);
 
   const body = (await request.json().catch(() => null)) as { code?: unknown; packIds?: unknown } | null;
   const code = typeof body?.code === "string" ? body.code.trim() : "";
   const ids = Array.isArray(body?.packIds) ? body.packIds.map(Number).filter(Number.isInteger).slice(0, 20) : [];
   if (!code) return json({ error: "Enter a code" }, 400);
 
-  const discount = validateDiscount(code);
+  const discount = validateDiscount(code, locals.user?.id);
   if (!discount) return json({ error: "Invalid or expired discount code" }, 404);
 
   const prices = ids
