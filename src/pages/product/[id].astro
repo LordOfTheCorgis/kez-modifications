@@ -1,5 +1,6 @@
 ---
 import Layout from "../../layouts/Layout.astro";
+import Breadcrumb from "../../components/Breadcrumb.astro";
 import { db } from "../../lib/db";
 import type { PackImageRow, PackRow, PackVersionRow } from "../../lib/db";
 import { canView, isDownloadable, ownsPack } from "../../lib/ownership";
@@ -54,7 +55,7 @@ const VISIBLE_VERSIONS = 3;
   image={images[0] ?? "/images/logo.png"}
 >
   <div class="detail-layout">
-    <a href="/shop" class="detail-back">← Back to Shop</a>
+    <Breadcrumb items={[{ label: "Shop", href: "/shop" }, { label: pack.name }]} />
     <div class="detail-content">
       <div class="detail-gallery">
         <div class="detail-main-img">

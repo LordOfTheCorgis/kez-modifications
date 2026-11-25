@@ -588,22 +588,39 @@ main {
   margin: 0 auto;
   padding: 2rem;
 }
-.detail-back {
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-family: "Inter", sans-serif;
-  font-size: 0.85rem;
-  cursor: pointer;
-  padding: 0;
+.breadcrumb {
   margin-bottom: 2rem;
-  transition: var(--trans);
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  font-size: 0.85rem;
 }
-.detail-back:hover {
+.breadcrumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  list-style: none;
+  gap: 0.5rem;
+}
+.breadcrumb li + li::before {
+  content: "/";
+  margin-right: 0.5rem;
+  color: var(--muted);
+  opacity: 0.6;
+}
+.breadcrumb a {
+  color: var(--muted);
+  border-radius: 3px;
+  transition: var(--trans);
+}
+.breadcrumb a:hover {
   color: var(--text);
+}
+.breadcrumb a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.breadcrumb [aria-current="page"] {
+  color: var(--text);
+  /* pack names get long, don't let one push the page wider than the phone */
+  overflow-wrap: anywhere;
 }
 .detail-content {
   display: grid;

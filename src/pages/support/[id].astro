@@ -1,5 +1,6 @@
 ---
 import Layout from "../../layouts/Layout.astro";
+import Breadcrumb from "../../components/Breadcrumb.astro";
 import { db } from "../../lib/db";
 import { getTicket, ticketAccess, TICKET_CATEGORIES, TICKET_URGENCIES, MAX_TICKET_BODY } from "../../lib/tickets";
 import type { TicketCategory, TicketUrgency } from "../../lib/tickets";
@@ -30,7 +31,17 @@ const lastId = messages.at(-1)?.id ?? 0;
 
 <Layout title={`#${ticket.id} ${ticket.subject} - Support`} active="support">
   <div class="support-page ticket-page">
-    <a href={access.staff ? "/admin/support" : "/support"} class="detail-back">← {access.staff ? "Support inbox" : "All tickets"}</a>
+    <Breadcrumb
+      items={
+        access.staff
+          ? [{ label: "Support inbox", href: "/admin/support" }, { label: `#${ticket.id}` }]
+          : [
+              { label: "Account", href: "/account" },
+              { label: ticket.status === "closed" ? "Old tickets" : "Tickets", href: `/account?tab=${ticket.status === "closed" ? "old-tickets" : "tickets"}` },
+              { label: `#${ticket.id}` },
+            ]
+      }
+    />
 
     <header class="ticket-header">
       <div class="ticket-meta-line">

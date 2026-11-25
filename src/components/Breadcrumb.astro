@@ -1,0 +1,24 @@
+---
+// last item is the page you're on: plain text, aria-current. everything before it links.
+// div role=navigation on purpose, a bare <nav> picks up the site header's global nav styles
+interface Props {
+  items: { label: string; href?: string }[];
+}
+const { items } = Astro.props;
+---
+
+<div class="breadcrumb" role="navigation" aria-label="Breadcrumb">
+  <ol>
+    {
+      items.map((item, i) => (
+        <li>
+          {i === items.length - 1 || !item.href ? (
+            <span aria-current={i === items.length - 1 ? "page" : undefined}>{item.label}</span>
+          ) : (
+            <a href={item.href}>{item.label}</a>
+          )}
+        </li>
+      ))
+    }
+  </ol>
+</div>
