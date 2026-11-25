@@ -29,7 +29,7 @@ const current = items.find(([slug]) => (slug || "products") === section);
 const readOnly = !!current && !can(user, current[2], 2);
 ---
 
-<Layout title={`${title} - Kez Admin`} active="admin">
+<Layout title={`${title} - Kez Admin`} active="admin" noindex>
   <div class="admin-page">
     <div class="admin-layout">
       <aside class="admin-sidebar">

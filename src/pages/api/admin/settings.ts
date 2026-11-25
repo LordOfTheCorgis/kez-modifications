@@ -4,6 +4,7 @@ import { getSetting, setSetting, SECRET_SETTING_KEYS } from "../../../lib/settin
 import { json, requirePerm } from "../../../lib/admin";
 import { can } from "../../../lib/perms";
 import type { Level } from "../../../lib/perms";
+import { verificationToken } from "../../../lib/seo";
 
 // the commissions page stores its stuff in settings too, but someone with
 // Commissions access shouldn't get to read Stripe keys on the way
@@ -32,6 +33,7 @@ export const GET: APIRoute = ({ locals }) => {
     "webhook_support",
     "discord_invite_url",
     "contact_email",
+    "google_site_verification",
     "hero_slides",
   ]);
   const out: Record<string, string> = {};
@@ -51,7 +53,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
   for (const [key, raw] of Object.entries(b)) {
     if (!ALLOWED_KEY.test(key) || typeof raw !== "string") continue;
     if (!allowed(locals, key, 2)) return json({ error: `No edit access for ${key}` }, 403);
-    const value = raw.trim();
+    let value = raw.trim();
+    if (key === "google_site_verification") {
+      const token = verificationToken(value);
+      if (token === null) return json({ error: "That doesn't look like a Google verification code. Paste the meta tag or the code Search Console gives you." }, 400);
+      value = token;
+    }
     // A masked/blank secret field means "leave unchanged".
     if (SECRET_SETTING_KEYS.has(key) && (value === "" || value.startsWith("•"))) continue;
     if (key === "stripe_mode" && value !== "test" && value !== "live") continue;

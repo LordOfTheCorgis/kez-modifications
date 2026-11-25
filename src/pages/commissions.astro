@@ -14,7 +14,11 @@ const note =
 const discordInvite = getSetting("discord_invite_url");
 ---
 
-<Layout title="Commissions - Kez Modifications" description="Custom FiveM commission work by Kez Modifications." active="commissions">
+<Layout
+  title="Custom FiveM EUP and Patch Commissions - Kez Modifications"
+  description={`Commission custom FiveM EUP, patches and models built for your community by Kez Modifications. Commissions are currently ${isOpen ? "open" : "closed"}.`}
+  active="commissions"
+>
   <div class="commissions-page">
     <header class="commissions-header">
       <div class="about-label">Commissions</div>

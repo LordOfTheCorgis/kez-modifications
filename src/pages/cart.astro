@@ -24,7 +24,7 @@ const fmt = (cents: number) => (cents === 0 ? "Free" : `$${(cents / 100).toFixed
 const canceled = Astro.url.searchParams.get("canceled") === "1";
 ---
 
-<Layout title="Cart - Kez Modifications" active="cart">
+<Layout title="Cart - Kez Modifications" active="cart" noindex>
   <div class="cart-page">
     <h1>Your cart</h1>
 

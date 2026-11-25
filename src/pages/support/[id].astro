@@ -32,7 +32,7 @@ const files = attachmentsFor(messages.map((m) => m.id));
 const lastId = messages.at(-1)?.id ?? 0;
 ---
 
-<Layout title={`#${ticket.id} ${ticket.subject} - Support`} active="support">
+<Layout title={`#${ticket.id} ${ticket.subject} - Support`} active="support" noindex>
   <div class="support-page ticket-page">
     <Breadcrumb
       items={

@@ -1,10 +1,11 @@
 ---
+import { absoluteUrl, jsonLd } from "../lib/seo";
 import Layout from "../layouts/Layout.astro";
 import PackCard from "../components/PackCard.astro";
 import { db } from "../lib/db";
 import type { PackRow } from "../lib/db";
 import { ownsPack } from "../lib/ownership";
-import { getHeroSlides } from "../lib/settings";
+import { getHeroSlides, getSetting } from "../lib/settings";
 
 const featured = db
   .prepare("SELECT * FROM packs WHERE is_featured = 1 AND status != 'hidden' ORDER BY sort_order, id LIMIT 6")
@@ -26,9 +27,33 @@ const reviews = db
      ORDER BY r.created_at DESC LIMIT 12`,
   )
   .all() as ReviewCard[];
+
+// one graph: who the business is and what the site is. no SearchAction, there's no site search to point at
+const discordInvite = getSetting("discord_invite_url");
+const siteSchema = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": absoluteUrl("/#organization"),
+      name: "Kez Modifications",
+      url: absoluteUrl("/"),
+      logo: absoluteUrl("/images/favicon-192.png"),
+      description: "Premium FiveM EUP, patches and models.",
+      foundingDate: "2026-04",
+      ...(discordInvite ? { sameAs: [discordInvite] } : {}),
+    },
+    { "@type": "WebSite", "@id": absoluteUrl("/#website"), url: absoluteUrl("/"), name: "Kez Modifications", publisher: { "@id": absoluteUrl("/#organization") } },
+  ],
+};
 ---
 
-<Layout active="home">
+<Layout
+  title="Kez Modifications - Premium FiveM EUP, Patches and Models"
+  description="Server-ready FiveM EUP packs, patches and models by Kez. Browse the shop, pay securely with Stripe, and your Discord role arrives automatically."
+  active="home"
+>
+  <script slot="head" type="application/ld+json" set:html={jsonLd(siteSchema)} />
   <section class={`hero ${slides.length ? "hero-has-slides" : ""}`}>
     {
       slides.length > 0 && (
@@ -45,7 +70,7 @@ const reviews = db
         </div>
       )
     }
-    <img src="/images/logo.png" class="hero-logo" alt="Kez Modifications" />
+    <img src="/images/logo-320.png" class="hero-logo" alt="Kez Modifications" width="160" height="160" />
     <h1>Kez Modifications</h1>
     <p>
       Premium FiveM EUP, patches, and EUP models. Server-ready packs crafted with

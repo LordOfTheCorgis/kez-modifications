@@ -28,9 +28,24 @@ for (const row of db
 }
 const total = (db.prepare("SELECT COUNT(*) AS n FROM packs WHERE status != 'hidden'").get() as { n: number }).n;
 const user = Astro.locals.user;
+
+// a real category gets its own title, description and canonical. an unknown id
+// renders the full shop, so it canonicalizes to /shop instead of becoming a duplicate page
+const category = activeCategory ? categories.find((c) => c.id === activeCategory) : undefined;
+const seoTitle = category
+  ? `${category.name} for FiveM - Kez Modifications Shop`
+  : "FiveM EUP Packs, Patches and Models - Kez Modifications Shop";
+const seoDescription = category
+  ? `Browse ${packs.length} ${category.name} pack${packs.length === 1 ? "" : "s"} for FiveM from Kez Modifications. Pay securely with Stripe and get your Discord role delivered automatically.`
+  : "Shop server-ready FiveM EUP packs, patches and models from Kez Modifications. Pay securely with Stripe and get your Discord role delivered automatically.";
 ---
 
-<Layout title="Shop - Kez Modifications" active="shop">
+<Layout
+  title={seoTitle}
+  description={seoDescription}
+  canonical={category ? `/shop?category=${category.id}` : "/shop"}
+  active="shop"
+>
   <div class="shop-layout">
     <aside class="sidebar">
       <div class="sidebar-label">Categories</div>
