@@ -8,6 +8,7 @@ process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "kez-seo-"));
 process.env.PUBLIC_SITE_URL = "https://kezmodifications.com/";
 const { db } = await import("../src/lib/db");
 const { absoluteUrl, clip, jsonLd, verificationToken } = await import("../src/lib/seo");
+const { markdownToPlainText } = await import("../src/lib/markdown");
 const { GET: sitemap } = await import("../src/pages/sitemap.xml");
 const { GET: robots } = await import("../src/pages/robots.txt");
 
@@ -67,4 +68,11 @@ test("robots.txt blocks api and admin, points at the sitemap, leaves uploads ope
   assert.ok(txt.includes("Disallow: /api/") && txt.includes("Disallow: /admin"));
   assert.ok(txt.includes("Sitemap: https://kezmodifications.com/sitemap.xml"));
   assert.ok(!txt.includes("/uploads") && !txt.includes("Disallow: /cart") && !txt.includes("Disallow: /account"));
+});
+
+test("plain text keeps ampersands and quotes as themselves, not as entities", () => {
+  assert.equal(markdownToPlainText("Replace & Addon, it's **High Quality**"), "Replace & Addon, it's High Quality");
+  assert.equal(markdownToPlainText('Say "hi" <b>now</b>'), 'Say "hi" now');
+  // an actual typed entity survives as text, decoded exactly once
+  assert.equal(markdownToPlainText("literal &amp;lt; here"), "literal &lt; here");
 });

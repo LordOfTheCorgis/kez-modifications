@@ -21,10 +21,19 @@ export function renderMarkdown(markdown: string): string {
   return sanitizeHtml(html, SANITIZE_OPTIONS);
 }
 
-/** Markdown → plain text (for meta descriptions and previews). */
+/**
+ * Markdown → plain text (for meta descriptions and JSON-LD). sanitize-html hands
+ * back HTML-escaped text, so "Replace & Addon" came out as "Replace &amp; Addon" and
+ * then got escaped a second time in the attribute. Decode once, the callers escape on output.
+ */
 export function markdownToPlainText(markdown: string): string {
   const html = marked.parse(markdown, { async: false });
   return sanitizeHtml(html, { allowedTags: [], allowedAttributes: {} })
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&#x27;/g, "'")
+    .replace(/&amp;/g, "&") // last, or "&amp;lt;" would decode twice
     .replace(/\s+/g, " ")
     .trim();
 }
