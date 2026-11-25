@@ -225,9 +225,14 @@
   border-radius: 50%;
   background: var(--surface2);
 }
+.account-header > div {
+  min-width: 0;
+}
 .account-header h1 {
   font-size: 1.4rem;
   font-weight: 700;
+  /* a 36 character discord name with no spaces was stretching the whole page sideways on phones */
+  overflow-wrap: anywhere;
 }
 .account-header p {
   color: var(--muted);
@@ -991,6 +996,10 @@ a.support-option:hover {
   border-bottom: 1px solid var(--border);
   /* four labels with counts don't fit a phone, scroll sideways instead of wrapping */
   overflow-x: auto;
+  scrollbar-width: none;
+}
+.account-tabs::-webkit-scrollbar {
+  display: none;
 }
 .account-tabs a {
   display: inline-flex;
@@ -1064,7 +1073,14 @@ a.account-stat:focus-visible {
   .account-summary {
     grid-template-columns: 1fr;
   }
+  /* row on its own line, the transcript button drops under it instead of squeezing the title */
   .ticket-list-item {
+    flex-wrap: wrap;
+  }
+  .ticket-list-item .ticket-list-row {
+    flex-basis: 100%;
+  }
+  .account-header {
     flex-wrap: wrap;
   }
 }
