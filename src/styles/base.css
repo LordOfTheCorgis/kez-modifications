@@ -601,7 +601,7 @@ main {
 }
 .breadcrumb ol {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   list-style: none;
   gap: 0.5rem;
@@ -624,10 +624,20 @@ main {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+.breadcrumb li {
+  flex-shrink: 0;
+}
+.breadcrumb li:last-child {
+  flex-shrink: 1;
+  min-width: 0;
+  /* long pack names get cut with an ellipsis, the h1 right below has the full one.
+     wrapping instead strands the slash at the start of line two */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .breadcrumb [aria-current="page"] {
   color: var(--text);
-  /* pack names get long, don't let one push the page wider than the phone */
-  overflow-wrap: anywhere;
 }
 .detail-content {
   display: grid;
