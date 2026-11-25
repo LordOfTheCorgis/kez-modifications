@@ -13,7 +13,6 @@
     "@astrojs/node": "^11.1.14",
     "astro": "^7.4.13",
     "better-sqlite3": "^11.10.0",
-    "dotenv": "^17.4.2",
     "marked": "^18.0.7",
     "sanitize-html": "^2.18.2",
     "stripe": "^17.7.0"
