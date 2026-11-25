@@ -497,10 +497,17 @@ main {
   margin-bottom: 0.4rem;
   line-height: 1.3;
 }
+.product-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
 .product-price {
-  font-weight: 700;
-  font-size: 1.1rem;
-  margin-bottom: 0.75rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--muted2);
 }
 .lod-grid {
   display: flex;
@@ -522,22 +529,26 @@ main {
   margin-bottom: 0.75rem;
 }
 .product-btn {
-  display: block;
-  width: 100%;
-  padding: 10px;
-  border: none;
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 6px;
-  background: var(--accent);
-  color: #fff;
+  background: transparent;
+  color: var(--text);
   font-family: "Inter", sans-serif;
   font-weight: 600;
-  font-size: 0.8rem;
-  cursor: pointer;
+  font-size: 0.75rem;
   transition: var(--trans);
   text-align: center;
 }
-.product-btn:hover {
-  background: var(--accent-hover);
+.product-card:hover .product-btn,
+.product-card:focus-visible .product-btn {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.product-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 /* BUTTONS */
