@@ -6,19 +6,22 @@ import type { TicketCategory } from "../lib/tickets";
 
 interface Props {
   userId: number;
+  /** open ones go on the Tickets tab, closed ones on Old Tickets */
+  status: "open" | "closed";
 }
+const { userId, status } = Astro.props;
 const tickets = db
-  .prepare("SELECT * FROM tickets WHERE user_id = ? ORDER BY status = 'closed', updated_at DESC LIMIT 50")
-  .all(Astro.props.userId) as TicketRow[];
+  .prepare("SELECT * FROM tickets WHERE user_id = ? AND status = ? ORDER BY updated_at DESC LIMIT 100")
+  .all(userId, status) as TicketRow[];
 ---
 
 {
   tickets.length === 0 ? (
-    <p class="admin-empty">No tickets yet.</p>
+    <p class="admin-empty">{status === "open" ? "No open tickets." : "No closed tickets yet."}</p>
   ) : (
     <ul class="ticket-list">
       {tickets.map((t) => (
-        <li>
+        <li class="ticket-list-item">
           <a href={`/support/${t.id}`} class="ticket-list-row">
             <span class="ticket-list-main">
               <strong>{t.subject}</strong>
@@ -35,6 +38,17 @@ const tickets = db
               <span class="ticket-state">Waiting on staff</span>
             )}
           </a>
+          {status === "closed" && (
+            // a sibling of the row link, not inside it: a link can't hold another link
+            <a
+              class="btn btn-ghost btn-sm"
+              href={`/api/tickets/${t.id}/transcript`}
+              download
+              aria-label={`Download transcript for ticket #${t.id}`}
+            >
+              Download transcript
+            </a>
+          )}
         </li>
       ))}
     </ul>

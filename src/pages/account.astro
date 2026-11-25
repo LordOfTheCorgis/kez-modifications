@@ -31,6 +31,30 @@ if (user) {
   ).map((r) => r.name);
 }
 
+const TABS = [
+  ["overview", "Overview"],
+  ["downloads", "Downloads"],
+  ["tickets", "Tickets"],
+  ["old-tickets", "Old Tickets"],
+] as const;
+type Tab = (typeof TABS)[number][0];
+const asked = Astro.url.searchParams.get("tab") ?? "";
+const tab: Tab = TABS.some(([k]) => k === asked) ? (asked as Tab) : "overview";
+
+const count = (status: string) =>
+  user
+    ? (db.prepare("SELECT COUNT(*) AS n FROM tickets WHERE user_id = ? AND status = ?").get(user.id, status) as { n: number }).n
+    : 0;
+const openTickets = count("open");
+const closedTickets = count("closed");
+const replyWaiting = user
+  ? (db.prepare("SELECT COUNT(*) AS n FROM tickets WHERE user_id = ? AND status = 'open' AND awaiting = 'customer'").get(user.id) as { n: number }).n
+  : 0;
+const memberSince = user
+  ? (db.prepare("SELECT created_at FROM users WHERE id = ?").get(user.id) as { created_at: string } | undefined)?.created_at
+  : undefined;
+const tabCount: Partial<Record<Tab, number>> = { downloads: ownedPacks.length, tickets: openTickets, "old-tickets": closedTickets };
+
 const q = Astro.url.searchParams;
 // landing here after checkout means the cart went through; drop it so the
 // same packs don't sit in the nav badge as "owned" leftovers
@@ -60,12 +84,6 @@ const notice = q.get("purchase") === "success"
       </div>
     ) : (
       <div class="account-page">
-        {notice && <div class="success-note">{notice}</div>}
-        {justReleased.length > 0 && (
-          <div class="success-note">
-            Released: {justReleased.join(", ")}. Your pre-order is delivered, download it below.
-          </div>
-        )}
         <div class="account-header">
           {user.image && <img src={user.image} alt="" class="account-avatar" />}
           <div>
@@ -79,56 +97,107 @@ const notice = q.get("purchase") === "success"
           </form>
         </div>
 
-        {preorders.length > 0 && (
-          <div class="account-section">
-            <h2>Pre-orders</h2>
-            {preorders.map((pack) => (
-              <div class="owned-row">
-                {pack.image_url ? <img class="owned-thumb" src={pack.image_url} alt="" /> : <div class="owned-thumb" />}
-                <div class="owned-name">{pack.name}</div>
-                <span class="badge badge-preorder">Awaiting release</span>
+        {/* plain links, not an ARIA tab widget: every tab is a real URL, so back/forward,
+            bookmarks and keyboard all work with zero script */}
+        <div class="account-tabs" role="navigation" aria-label="Account sections">
+          {
+            TABS.map(([key, label]) => (
+              <a href={key === "overview" ? "/account" : `/account?tab=${key}`} aria-current={key === tab ? "page" : undefined}>
+                {label}
+                {tabCount[key] ? <span class="account-tab-count">{tabCount[key]}</span> : null}
+              </a>
+            ))
+          }
+        </div>
+
+        {tab === "overview" && (
+          <>
+            {notice && <div class="success-note">{notice}</div>}
+            {justReleased.length > 0 && (
+              <div class="success-note">
+                Released: {justReleased.join(", ")}. Your pre-order is delivered, download it from the{" "}
+                <a href="/account?tab=downloads" style="text-decoration:underline;">Downloads tab</a>.
               </div>
-            ))}
+            )}
+
+            <div class="account-summary">
+              <a href="/account?tab=downloads" class="account-stat">
+                <strong>{ownedPacks.length}</strong>
+                <span>Pack{ownedPacks.length === 1 ? "" : "s"} owned</span>
+              </a>
+              <a href="/account?tab=tickets" class="account-stat">
+                <strong>{openTickets}</strong>
+                <span>
+                  Open ticket{openTickets === 1 ? "" : "s"}{replyWaiting > 0 ? `, ${replyWaiting} waiting on you` : ""}
+                </span>
+              </a>
+              <div class="account-stat">
+                <strong>{memberSince ? new Date(`${memberSince.replace(" ", "T")}Z`).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" }) : "Today"}</strong>
+                <span>Member since</span>
+              </div>
+            </div>
+
+            {preorders.length > 0 && (
+              <div class="account-section">
+                <h2>Pre-orders</h2>
+                {preorders.map((pack) => (
+                  <div class="owned-row">
+                    {pack.image_url ? <img class="owned-thumb" src={pack.image_url} alt="" /> : <div class="owned-thumb" />}
+                    <div class="owned-name">{pack.name}</div>
+                    <span class="badge badge-preorder">Awaiting release</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {tab === "downloads" && (
+          <div class="account-section">
+            <h2>Your packs</h2>
+            {ownedPacks.length === 0 ? (
+              <p class="admin-empty">
+                You don't own anything yet. <a href="/shop" style="color:var(--accent);">Browse the shop</a>.
+              </p>
+            ) : (
+              ownedPacks.map((pack) => (
+                <div class="owned-row">
+                  {pack.image_url ? <img class="owned-thumb" src={pack.image_url} alt="" /> : <div class="owned-thumb" />}
+                  <div class="owned-name">{pack.name}</div>
+                  <a href={`/product/${pack.id}`} class="btn btn-ghost btn-sm">
+                    View
+                  </a>
+                  {isDownloadable(pack) && (
+                    <a href={`/api/download/${pack.id}`} class="btn btn-primary btn-sm">
+                      Download
+                    </a>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         )}
 
-        <div class="account-section" id="packs">
-          <h2>Your packs</h2>
-          {ownedPacks.length === 0 ? (
-            <p class="admin-empty">
-              You don't own anything yet — <a href="/shop" style="color:var(--accent);">browse the shop</a>.
-            </p>
-          ) : (
-            ownedPacks.map((pack) => (
-              <div class="owned-row">
-                {pack.image_url ? (
-                  <img class="owned-thumb" src={pack.image_url} alt="" />
-                ) : (
-                  <div class="owned-thumb" />
-                )}
-                <div class="owned-name">{pack.name}</div>
-                <a href={`/product/${pack.id}`} class="btn btn-ghost btn-sm">
-                  View
-                </a>
-                {isDownloadable(pack) && (
-                  <a href={`/api/download/${pack.id}`} class="btn btn-primary btn-sm">
-                    Download
-                  </a>
-                )}
-              </div>
-            ))
-          )}
-        </div>
-
-        <div class="account-section" id="tickets">
-          <div class="account-section-head">
-            <h2>Support tickets</h2>
-            <a href="/support#new-ticket" class="btn btn-ghost btn-sm">
-              New ticket
-            </a>
+        {tab === "tickets" && (
+          <div class="account-section">
+            <div class="account-section-head">
+              <h2>Open tickets</h2>
+              <a href="/support#new-ticket" class="btn btn-ghost btn-sm">
+                New ticket
+              </a>
+            </div>
+            <TicketList userId={user.id} status="open" />
           </div>
-          <TicketList userId={user.id} />
-        </div>
+        )}
+
+        {tab === "old-tickets" && (
+          <div class="account-section">
+            <div class="account-section-head">
+              <h2>Old tickets</h2>
+            </div>
+            <TicketList userId={user.id} status="closed" />
+          </div>
+        )}
       </div>
     )
   }
